@@ -1,0 +1,108 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+*.manifest
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+# --- Environment & secrets (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.json
+service-account*.json
+
+# --- Testing & coverage ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# --- Database (local files only) ---
+*.db
+*.sqlite
+*.sqlite3
+dev.db
+
+# --- Logs & runtime ---
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.pid
+*.seed
+
+# --- Data exports & uploads (generated) ---
+data/
+exports/
+uploads/
+*.jsonl
+!eval/cases/*.yaml
+
+# --- IDE & editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# --- Cursor (local IDE — MCP, rules; không commit) ---
+.cursor/*
+!.cursor/mcp.json.example
+.cursorignore
+# --- OS ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# --- Azure / cloud local ---
+.azure/
+
+# --- Docker (local volume mounts, not compose file) ---
+docker-data/
+
+# --- Node (if frontend monorepo added later) ---
+node_modules/
+.npm/
+.yarn/
+.pnp.*
+dist-ssr/
+*.local
+
+# --- Langfuse / observability local ---
+.langfuse/
+
+# --- Jupyter ---
+.ipynb_checkpoints/

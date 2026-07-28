@@ -1,0 +1,78 @@
+# Agent Fleet Registry — Lớp 2: mỗi agent = model riêng
+# Ref: OpenAI Swarm/Agents SDK, Anthropic managed agents, CrewAI
+#
+# Pattern: agent.model gắn trực tiếp vào agent (industry standard)
+# Giá trị: profile alias (balanced) hoặc model ref (or-claude-sonnet)
+
+agents:
+  - id: general-agent
+    name: General Assistant
+    description: >
+      Trợ lý đa năng — giải thích, viết, brainstorm, Q&A, tóm tắt.
+      Dùng cho mọi yêu cầu KHÔNG cần query DB, search tài liệu, hay action.
+    skills:
+      - general-assistant
+    tools: []
+    model: balanced
+    model_fallbacks: [or-gpt-4o-mini]
+
+  - id: db-worker
+    name: DB Worker
+    description: >
+      Truy vấn PostgreSQL read-only — số liệu, bản ghi, thống kê, báo cáo.
+    skills:
+      - database-query
+    tools:
+      - sql-mcp
+    model: cheap
+    model_fallbacks: [or-gpt-4o-mini]
+
+  - id: research-worker
+    name: Research Worker
+    description: >
+      Tìm kiếm thông tin — tài liệu nội bộ, knowledge base, web search.
+    skills:
+      - document-research
+    tools:
+      - search-mcp
+    model: balanced
+    model_fallbacks: [or-gemini-flash]
+
+  - id: legal-agent
+    name: Legal Domain Agent
+    description: >
+      Chuyên gia domain PHÁP LUẬT — tra cứu văn bản, điều khoản, phân tích hợp đồng.
+      CHỈ dùng khi request liên quan pháp lý.
+    skills:
+      - legal-research
+    tools:
+      - search-mcp
+    model: or-claude-sonnet
+    model_fallbacks: [or-gemini-flash]
+    domain: legal
+
+  - id: action-worker
+    name: Action Worker
+    description: >
+      Thực thi hành động — gửi email, notification, gọi API. Cần human approval.
+    skills: []
+    tools:
+      - api-mcp
+    model: fast
+
+  - id: code-worker
+    name: Code Worker
+    description: >
+      Viết/chạy code, ETL, transform dữ liệu (Phase 2+).
+    skills: []
+    tools:
+      - code-interpreter
+    model: balanced
+    enabled: false
+
+  - id: default-agent
+    name: Default Agent
+    description: Fallback khi không match agent nào.
+    skills: []
+    tools: []
+    model: fast

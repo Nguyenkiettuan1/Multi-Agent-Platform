@@ -1,0 +1,120 @@
+# =============================================================================
+# Model Infrastructure Layer
+# Ref: LiteLLM (catalog + fallbacks), OpenRouter (multi-provider proxy)
+# =============================================================================
+#
+# Đây là LỚP 1 — chỉ định nghĩa providers, catalog model, profiles, fallbacks.
+# KHÔNG gán model cho agent ở đây → xem agents/registry.yaml (Lớp 2)
+# KHÔNG gán model cho pipeline → xem agents/orchestrator/agent.yaml (Lớp 3)
+
+providers:
+  openrouter:
+    type: openai_compatible
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    extra_headers:
+      HTTP-Referer: https://github.com/phanlaw/multi-agent
+      X-Title: PHANLAW Multi-Agent
+
+  azure:
+    type: azure_openai
+    endpoint_env: AZURE_OPENAI_ENDPOINT
+    api_key_env: AZURE_OPENAI_API_KEY
+    api_version: "2025-01-01-preview"
+
+  openai:
+    type: openai_compatible
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+
+  google:
+    type: openai_compatible
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GOOGLE_API_KEY
+
+# --- Catalog: thêm model mới tại đây ---
+models:
+  or-gpt-4o-mini:
+    provider: openrouter
+    model_id: openai/gpt-4o-mini
+    description: Fast & cheap
+    max_tokens: 4096
+    temperature: 0.2
+    tags: [fast, cheap]
+
+  or-claude-sonnet:
+    provider: openrouter
+    model_id: anthropic/claude-sonnet-4
+    description: Balanced — Claude via OpenRouter
+    max_tokens: 8192
+    temperature: 0.3
+    tags: [balanced]
+
+  or-gemini-flash:
+    provider: openrouter
+    model_id: google/gemini-2.5-flash
+    description: Google Gemini fast
+    max_tokens: 8192
+    temperature: 0.3
+    tags: [fast, balanced]
+
+  or-deepseek:
+    provider: openrouter
+    model_id: deepseek/deepseek-chat
+    description: Cost-effective
+    max_tokens: 8192
+    temperature: 0.3
+    tags: [cheap]
+
+  az-gpt-4o-mini:
+    provider: azure
+    model_id: gpt-4o-mini
+    api_version: "2025-01-01-preview"
+    description: Azure GPT-4o mini — fast & cheap
+    max_tokens: 4096
+    temperature: 0.2
+    tags: [fast, cheap]
+
+  az-gpt-4.1:
+    provider: azure
+    model_id: gpt-4.1
+    api_version: "2025-01-01-preview"
+    description: Azure GPT-4.1
+    max_tokens: 8192
+    temperature: 0.3
+    tags: [balanced]
+
+  az-o3:
+    provider: azure
+    model_id: o3
+    api_version: "2025-01-01-preview"
+    description: Azure reasoning
+    max_tokens: 16384
+    temperature: 0.5
+    tags: [reasoning]
+
+  oai-gpt-4o:
+    provider: openai
+    model_id: gpt-4o
+    description: OpenAI direct
+    max_tokens: 8192
+    temperature: 0.3
+    tags: [balanced]
+
+# Profiles — alias tiện lợi (Swarm/CrewAI style shorthand)
+profiles:
+  fast: or-gpt-4o-mini
+  balanced: or-claude-sonnet
+  reasoning: az-o3
+  cheap: or-deepseek
+
+default_model: or-gpt-4o-mini
+
+# Global fallback chains — LiteLLM pattern
+# Khi primary model lỗi/rate-limit → thử lần lượt
+fallbacks:
+  or-claude-sonnet: [az-gpt-4.1, az-gpt-4o-mini, or-gpt-4o-mini, or-deepseek]
+  or-gpt-4o-mini: [az-gpt-4o-mini, or-deepseek]
+  or-gemini-flash: [az-gpt-4o-mini, az-gpt-4o-mini]
+  az-o3: [az-gpt-4.1, or-claude-sonnet, or-gpt-4o-mini]
+  az-gpt-4.1: [az-gpt-4o-mini, or-claude-sonnet, or-gpt-4o-mini]

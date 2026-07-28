@@ -1,0 +1,28 @@
+# Azure Developer CLI — Multi-Agent Platform
+# Docs: https://learn.microsoft.com/azure/developer/azure-developer-cli/
+
+name: phanlaw-multi-agent
+metadata:
+  template: azd-init@1.0.0
+
+services:
+  orchestrator:
+    project: agents/orchestrator
+    host: containerapp
+    language: python
+  db-agent:
+    project: agents/db-agent
+    host: containerapp
+    language: python
+  research-agent:
+    project: agents/research-agent
+    host: containerapp
+    language: python
+  sql-mcp:
+    project: mcp-servers/sql-server
+    host: containerapp
+    language: python
+  gateway:
+    project: gateway
+    host: containerapp
+    language: python

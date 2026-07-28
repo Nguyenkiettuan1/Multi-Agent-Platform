@@ -1,0 +1,20 @@
+name: document-research
+description: Tìm kiếm tài liệu generic — không gắn domain
+version: "1.0"
+enabled: true
+
+agents:
+  - research-worker
+
+triggers:
+  - tìm kiếm
+  - tra cứu
+  - tài liệu
+  - search
+  - research
+
+model_tier: T1
+
+tags:
+  - capability
+  - research

@@ -1,0 +1,42 @@
+# Guardrails — input/output security
+# Ref: Guardrails AI, Azure Content Safety, OWASP LLM Top 10
+
+input:
+  block_patterns:
+  - pattern: "(?i)\\b(DROP|DELETE|TRUNCATE|ALTER|INSERT|UPDATE)\\s+(TABLE|FROM|INTO)"
+    reason: destructive_sql
+    message: "Yêu cầu thay đổi/xóa dữ liệu không được phép qua DB agent read-only."
+
+  - pattern: "(?i)\\b(xoa|xóa)\\b.*\\b(hop dong|ban ghi|record|du lieu|id)"
+    reason: destructive_request
+    message: "Không có quyền xóa dữ liệu. DB agent chỉ read-only."
+
+  - pattern: "(?i)\\b(password|api[_-]?key|secret|token)\\s*[:=]\\s*\\S+"
+    reason: credential_in_prompt
+    message: "Không gửi credential/secret qua chat."
+
+  warn_patterns:
+  - pattern: "(?i)\\b(cccd|cmnd|số thẻ|credit card)\\b"
+    reason: sensitive_topic
+
+output:
+  redact_patterns:
+  - name: email
+    pattern: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+    replacement: "[EMAIL_REDACTED]"
+  - name: phone_vn
+    pattern: "\\b(0|84)(3|5|7|8|9)\\d{8}\\b"
+    replacement: "[PHONE_REDACTED]"
+  - name: credit_card
+    pattern: "\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b"
+    replacement: "[CARD_REDACTED]"
+
+eval:
+  min_score: 0.6
+  llm_judge_enabled: false
+  checks:
+  - worker_success
+  - non_empty_response
+  - intent_match
+  - no_blocked_content
+  - citations_present

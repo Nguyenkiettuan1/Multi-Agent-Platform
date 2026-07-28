@@ -1,0 +1,33 @@
+# skill.yaml — Config tùy biến (machine-readable)
+# Platform đọc file này: triggers, agents, version, enabled...
+# Nội dung hướng dẫn agent nằm trong SKILL.md (markdown)
+
+name: database-query
+description: Hướng dẫn truy vấn PostgreSQL an toàn (read-only)
+version: "1.0"
+enabled: true
+
+agents:
+  - db-worker
+
+triggers:
+  - query
+  - database
+  - sql
+  - bảng
+  - dữ liệu
+  - thống kê
+  - báo cáo
+
+model_tier: T1
+max_context_tokens: 2048
+
+tags:
+  - capability
+  - database
+
+# Tùy biến thêm (platform-specific)
+settings:
+  max_rows: 100
+  read_only: true
+  default_schema: app

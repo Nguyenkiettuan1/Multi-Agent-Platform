@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface-container: #e5eeff;
+  --color-status-error: #ef4444;
+  --color-secondary-fixed: #dbe1ff;
+  --color-citation-knowledge: #2563eb;
+  --color-on-secondary: #ffffff;
+  --color-tertiary-container: #370e00;
+  --color-secondary: #0051d5;
+  --color-on-secondary-fixed: #00174b;
+  --color-tertiary-fixed-dim: #ffb599;
+  --color-on-surface: #0b1c30;
+  --color-on-surface-variant: #45464d;
+  --color-border-subtle: #e2e8f0;
+  --color-on-secondary-container: #fefcff;
+  --color-primary-fixed-dim: #bec6e0;
+  --color-inverse-surface: #213145;
+  --color-on-tertiary-fixed-variant: #7f2b00;
+  --color-primary-container: #131b2e;
+  --color-status-success: #10b981;
+  --color-surface-bright: #f8f9ff;
+  --color-surface-container-low: #eff4ff;
+  --color-on-primary: #ffffff;
+  --color-secondary-container: #316bf3;
+  --color-on-primary-fixed: #131b2e;
+  --color-on-primary-fixed-variant: #3f465c;
+  --color-surface: #f8f9ff;
+  --color-primary: #000000;
+  --color-inverse-on-surface: #eaf1ff;
+  --color-on-secondary-fixed-variant: #003ea8;
+  --color-primary-fixed: #dae2fd;
+  --color-error-container: #ffdad6;
+  --color-outline-variant: #c6c6cd;
+  --color-surface-container-highest: #d3e4fe;
+  --color-error: #ba1a1a;
+  --color-on-tertiary-fixed: #370e00;
+  --color-citation-web: #ea580c;
+  --color-surface-variant: #d3e4fe;
+  --color-secondary-fixed-dim: #b4c5ff;
+  --color-inverse-primary: #bec6e0;
+  --color-on-tertiary-container: #e45405;
+  --color-surface-sidebar: #f8fafc;
+  --color-on-error: #ffffff;
+  --color-tertiary: #000000;
+  --color-surface-dim: #cbdbf5;
+  --color-surface-tint: #565e74;
+  --color-outline: #76777d;
+  --color-background: #f8f9ff;
+  --color-on-tertiary: #ffffff;
+  --color-surface-container-lowest: #ffffff;
+  --color-status-warning: #f59e0b;
+  --color-tertiary-fixed: #ffdbce;
+  --color-on-background: #0b1c30;
+  --color-on-primary-container: #7c839b;
+  --color-surface-container-high: #dce9ff;
+  --color-on-error-container: #93000a;
+
+  --spacing-gutter-md: 24px;
+  --spacing-sidebar-width: 280px;
+  --spacing-margin-page: 32px;
+  --spacing-container-max-chat: 800px;
+  --spacing-drawer-width: 400px;
+
+  --font-body-code: "JetBrains Mono", monospace;
+  --font-sans: "Inter", sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.icon-fill {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.font-body-code {
+  font-family: var(--font-body-code);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c6c6cd;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #76777d;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

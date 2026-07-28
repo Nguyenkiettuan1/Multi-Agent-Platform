@@ -1,0 +1,50 @@
+# YAML (agent registry)
+pyyaml>=6.0
+
+# Core
+mcp>=1.0.0
+pydantic>=2.0
+pydantic-settings>=2.0
+
+# PostgreSQL
+sqlalchemy>=2.0
+psycopg[binary]>=3.1
+psycopg-pool>=3.2
+
+# LangGraph + checkpointing (local = Postgres, giống production)
+langgraph>=0.2
+langgraph-checkpoint-postgres>=2.0
+
+# Redis
+redis>=5.0
+
+# API Gateway
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+python-multipart>=0.0.9
+
+# Document parsing (RAG ingest)
+pypdf>=4.0
+python-docx>=1.1
+
+# Observability
+opentelemetry-api>=1.20
+opentelemetry-sdk>=1.20
+opentelemetry-instrumentation-fastapi>=0.41b0
+langfuse>=2.0  # optional — enable with LANGFUSE_TRACING_ENABLED=true
+
+# Azure (uncomment when deploying to Foundry)
+# azure-identity>=1.15
+# azure-ai-projects>=1.0.0b1
+
+# LLM
+openai>=1.40
+
+# Azure Search (optional)
+azure-search-documents>=11.4
+
+# Dev & Testing
+pytest>=8.0
+pytest-asyncio>=0.24
+ruff>=0.5

@@ -1,0 +1,61 @@
+# Orchestrator Pipeline — Lớp 3: control-plane nodes (LangGraph steps)
+# Ref: Anthropic LeadResearcher/CitationAgent, LangGraph router pattern
+#
+# Các node này KHÔNG phải worker agent — là bước trong graph:
+#   triage → meta-planner → workers → reviewer → synthesizer
+
+agents:
+  triage:
+    role: control
+    description: Classify intent, estimate complexity, select topology
+    model: fast
+    model_fallbacks: [or-gpt-4o-mini]
+
+  meta-planner:
+    role: control
+    description: Decompose request into task DAG (Lesson 07)
+    model: reasoning
+    model_fallbacks: [or-claude-sonnet]
+
+  reviewer:
+    role: control
+    description: Review worker outputs for accuracy
+    model: balanced
+    model_fallbacks: [or-gpt-4o-mini]
+
+  synthesizer:
+    role: control
+    description: Combine worker results into final response
+    model: reasoning
+    model_fallbacks: [or-claude-sonnet]
+
+  evaluator:
+    role: control
+    description: LLM-as-judge — faithfulness & citation quality
+    model: fast
+    model_fallbacks: [or-gpt-4o-mini]
+
+  chairman:
+    role: control
+    description: Council mode — multi-model consensus
+    model: reasoning
+    model_fallbacks: [or-claude-sonnet, or-gpt-4o-mini]
+    enabled_when: slo_tier == "critical"
+
+# Topology selection — complexity-based routing (Anthropic pattern)
+topology_rules:
+  direct:
+    condition: complexity < 0.3
+    flow: [triage, domain_worker]
+
+  planned:
+    condition: complexity >= 0.3 AND complexity < 0.7
+    flow: [triage, meta-planner, domain_worker, synthesizer]
+
+  reviewed:
+    condition: complexity >= 0.7
+    flow: [triage, meta-planner, domain_worker, reviewer, synthesizer]
+
+  council:
+    condition: slo_tier == "critical"
+    flow: [triage, meta-planner, domain_worker, reviewer, chairman]

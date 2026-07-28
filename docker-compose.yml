@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: phanlaw-postgres
+    environment:
+      POSTGRES_USER: phanlaw
+      POSTGRES_PASSWORD: phanlaw
+      POSTGRES_DB: phanlaw
+    ports:
+      - "5434:5432"   # host 5434 — tránh 5432 (PG native) và 5433 (postgres_db cũ)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Migrations: chạy bằng python scripts/db_migrate.py (không mount initdb — tránh chạy đôi)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phanlaw -d phanlaw"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: phanlaw-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # pgAdmin — GUI quản lý PostgreSQL (không cần cài client riêng)
+  # Truy cập: http://localhost:5050
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: phanlaw-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./infra/pgadmin/pgpass:/pgpass:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  pgadmin_data:

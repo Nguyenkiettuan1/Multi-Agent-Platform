@@ -1,0 +1,19 @@
+# skill.yaml — Config (platform đọc)
+name: my-skill
+description: Mô tả ngắn — dùng cho router và registry
+version: "0.1"
+enabled: true
+
+agents:
+  - general-agent
+
+triggers:
+  - keyword-1
+  - keyword-2
+
+model_tier: T1
+tags: []
+
+settings:
+  # Tùy biến riêng cho skill này
+  key: value

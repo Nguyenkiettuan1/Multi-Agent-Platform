@@ -1,0 +1,61 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment & secrets — NEVER bake into image
+.env
+.env.*
+!.env.example
+
+# Python cache & virtual env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Tests & dev tooling
+tests/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Docs (not needed at runtime)
+docs/
+*.md
+!README.md
+
+# IDE & OS
+.idea/
+.vscode/
+.cursor/
+.DS_Store
+Thumbs.db
+
+# Local data & exports
+data/
+exports/
+uploads/
+logs/
+tmp/
+*.log
+*.db
+*.sqlite3
+
+# Docker compose & local infra GUI (not for app image)
+docker-compose.yml
+docker-compose.*.yml
+infra/pgadmin/
+
+# Azure local
+.azure/
+
+# Node (future frontend)
+node_modules/
