@@ -73,9 +73,8 @@ uploads/
 .pydevproject
 .settings/
 
-# --- Cursor (local IDE — MCP, rules; không commit) ---
-.cursor/*
-!.cursor/mcp.json.example
+# --- Cursor (local IDE — do not commit) ---
+.cursor/
 .cursorignore
 # --- OS ---
 .DS_Store
