@@ -7,11 +7,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from config import get_settings
 from config.version import SERVICE_VERSION
 from core.checkpointer import create_checkpointer
+from core.mcp.attachments import materialize_attachments
+from core.planning.media_tasks import image_only_default_message
 from core.observability.logging import setup_logging
 from core.security.auth import verify_api_key
 from workflows.graph import build_graph
@@ -31,17 +33,30 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PHANLAW Multi-Agent API",
+    title="Multi-Agent Platform API",
     description="Triage → Plan → Agents → Eval",
     version=SERVICE_VERSION,
     lifespan=lifespan,
 )
 
 
+class ChatAttachment(BaseModel):
+    filename: str = "attachment"
+    mime_type: str = "image/png"
+    data: str = Field(..., min_length=1, max_length=8_000_000)
+
+
 class ChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=8000)
+    message: str = Field(default="", max_length=8000)
     session_id: str | None = None
     user_id: str = "anonymous"
+    attachments: list[ChatAttachment] = Field(default_factory=list, max_length=3)
+
+    @model_validator(mode="after")
+    def require_message_or_attachment(self) -> "ChatRequest":
+        if not self.message.strip() and not self.attachments:
+            raise ValueError("Message or attachment required")
+        return self
 
 
 class ChatResponse(BaseModel):
@@ -95,7 +110,7 @@ async def health():
 
     return {
         "status": "ok",
-        "service": "phanlaw-multi-agent",
+        "service": "multi-agent-platform",
         "version": SERVICE_VERSION,
         "graph_ready": get_graph() is not None,
     }
@@ -128,6 +143,29 @@ async def list_models(_: str | None = Depends(verify_api_key)):
         "agents": agents,
         "pipeline": pipeline,
         "llm_enabled": router.any_provider_configured(),
+    }
+
+
+@app.get("/api/v1/mcp/catalog")
+async def mcp_catalog(_: str | None = Depends(verify_api_key)):
+    """List MCP servers + tools for app runtime (chat agents)."""
+    from core.mcp.hub import format_tools_for_llm, get_tool_hub
+
+    hub = get_tool_hub()
+    tools = hub.list_tools()
+    return {
+        "servers": hub.catalog_summary(),
+        "tools": [
+            {
+                "id": t.id,
+                "server_id": t.server_id,
+                "name": t.name,
+                "description": t.description,
+                "kind": t.kind,
+            }
+            for t in tools
+        ],
+        "tools_json": format_tools_for_llm(tools),
     }
 
 
@@ -275,7 +313,7 @@ async def admin_chunk_preview(
     request: ChunkPreviewRequest,
     _: str | None = Depends(verify_api_key),
 ):
-    """Xem trước chunks + quality score — KHÔNG ghi DB."""
+    """Preview chunks + quality score — does NOT write to DB."""
     from core.search.ingestion import preview_document
 
     return preview_document(
@@ -291,7 +329,7 @@ async def admin_chunk_eval(
     request: ChunkEvalRequest,
     _: str | None = Depends(verify_api_key),
 ):
-    """Dry-run: embed query và score từng chunk — kiểm tra chunking có hợp lý không."""
+    """Dry-run: embed query and score each chunk — check if chunking is reasonable."""
     from core.search.chunking import chunk_text
     from core.search.ingestion import evaluate_chunks_for_query, preview_document
 
@@ -317,15 +355,15 @@ async def admin_chunk_eval(
 
 def _chunk_eval_recommendation(rankings: list[dict], analysis: dict) -> str:
     if not rankings or rankings[0].get("score") is None:
-        return "Cần OPENROUTER_API_KEY hoặc OPENAI_API_KEY để đánh giá semantic."
+        return "OPENROUTER_API_KEY or OPENAI_API_KEY required for semantic evaluation."
     top = rankings[0].get("score", 0)
     if top < 0.5:
-        return "Score thấp — thử giảm chunk_size, tăng overlap, hoặc kiểm tra nội dung query."
+        return "Low score — try reducing chunk_size, increasing overlap, or check query content."
     if analysis.get("quality_score", 1) < 0.7:
-        return "Chunking chất lượng thấp — xem warnings và chỉnh chunk_size/overlap."
+        return "Low chunking quality — see warnings and adjust chunk_size/overlap."
     if len(rankings) > 1 and rankings[0].get("score", 0) - rankings[1].get("score", 0) < 0.05:
-        return "Nhiều chunk score gần nhau — có thể overlap quá nhiều hoặc chunk quá giống nhau."
-    return "Chunking ổn — chunk top-1 khớp query tốt."
+        return "Multiple chunks with similar scores — overlap may be too high or chunks too similar."
+    return "Chunking looks good — top chunk matches query well."
 
 
 @app.post("/api/v1/admin/knowledge/upload")
@@ -338,7 +376,7 @@ async def admin_upload_knowledge(
     preview_only: bool = Form(False),
     _: str | None = Depends(verify_api_key),
 ):
-    """Upload PDF/DOCX/TXT → chunk → embed → store. preview_only=true chỉ xem chunks."""
+    """Upload PDF/DOCX/TXT → chunk → embed → store. preview_only=true returns chunks only."""
     from core.search.ingestion import ingest_file_bytes, preview_document
     from core.search.parsers import parse_file
 
@@ -408,13 +446,24 @@ async def chat_history(
     return {"session_id": session_id, "turns": items, "count": len(items)}
 
 
+def _chat_message_for_workflow(message: str, attachments: list) -> str:
+    text = message.strip()
+    if text:
+        return text
+    if attachments:
+        return image_only_default_message()
+    return text
+
+
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, _: str | None = Depends(verify_api_key)):
     try:
+        attachments = materialize_attachments([a.model_dump() for a in request.attachments])
         return ChatResponse(**await run_agent_workflow(
-            request.message,
+            _chat_message_for_workflow(request.message, attachments),
             user_id=request.user_id,
             session_id=request.session_id,
+            attachments=attachments,
         ))
     except Exception as exc:
         logger.exception("chat failed")
@@ -424,11 +473,13 @@ async def chat(request: ChatRequest, _: str | None = Depends(verify_api_key)):
 @app.post("/api/v1/chat/stream")
 async def chat_stream(request: ChatRequest, _: str | None = Depends(verify_api_key)):
     try:
+        attachments = materialize_attachments([a.model_dump() for a in request.attachments])
         return StreamingResponse(
             stream_agent_workflow(
-                request.message,
+                _chat_message_for_workflow(request.message, attachments),
                 user_id=request.user_id,
                 session_id=request.session_id,
+                attachments=attachments,
             ),
             media_type="text/event-stream",
             headers={

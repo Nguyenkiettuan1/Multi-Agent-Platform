@@ -14,7 +14,7 @@
 | A **law firm website** or legal research portal | A **general-purpose enterprise AI workspace** (like ChatGPT Enterprise + admin console) |
 | Scales of justice, gavels, law books as primary visuals | Neutral tech: agents, knowledge, workflows, citations |
 | Legal-only sample content | **Mixed sample content:** general Q&A, data queries, document research, HR, IT, **and occasionally** legal |
-| Product name shown as "Law AI" | Product working title: **"Agent Workspace"** (internal codename: PHANLAW — company name only, not product theme) |
+| Product name shown as "Law AI" | Product working title: **"Agent Workspace"** (internal codename: multi-agent — company name only, not product theme) |
 
 **What this product is:** An **orchestrated multi-agent AI platform**. The user sends one message; the system automatically picks the right specialist agent (general assistant, database analyst, researcher, legal specialist, etc.), searches knowledge + web, and returns a cited answer.
 
@@ -680,4 +680,4 @@ Citations appear for **research** and **legal** answers — not every message.
 
 ---
 
-*Internal codename: PHANLAW Multi-Agent · Backend v0.3.0 · Design brief v2.0*
+*Internal codename: Multi-Agent Platform · Backend v0.3.0 · Design brief v2.0*

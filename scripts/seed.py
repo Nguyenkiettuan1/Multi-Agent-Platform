@@ -1,4 +1,4 @@
-"""Seed PostgreSQL app schema — chỉ chạy thủ công: python scripts/seed.py"""
+"""Seed PostgreSQL app schema — run manually: python scripts/seed.py"""
 
 import sys
 from pathlib import Path

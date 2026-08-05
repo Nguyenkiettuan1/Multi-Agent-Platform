@@ -69,7 +69,7 @@ export function AuditPage() {
           <div>
             <h1 className="mb-2 text-display-lg text-on-surface">Audit Logs</h1>
             <p className="max-w-2xl text-body-md text-on-surface-variant">
-              Theo dõi, tìm kiếm và phân tích toàn bộ hoạt động của hệ thống và các tương tác của Agent.
+              Track, search, and analyze all system activity and agent interactions.
             </p>
           </div>
           <button
@@ -79,7 +79,7 @@ export function AuditPage() {
             className="flex items-center gap-2 rounded-lg border border-border-subtle px-4 py-2 text-label-md text-primary hover:bg-surface-container-low disabled:opacity-50"
           >
             <MaterialIcon name="refresh" size={18} className={loading ? 'animate-spin' : ''} />
-            Làm mới
+            Refresh
           </button>
         </div>
 
@@ -99,12 +99,12 @@ export function AuditPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm kiếm theo Trace ID hoặc User ID..."
+              placeholder="Search by Trace ID or User ID..."
               className="w-full rounded-lg border border-border-subtle bg-surface-container-low py-2 pr-4 pl-10 text-body-md text-on-surface placeholder:text-on-surface-variant focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none"
             />
           </div>
           <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto">
-            <span className="mr-1 text-label-md text-on-surface-variant">Bộ lọc hành động:</span>
+            <span className="mr-1 text-label-md text-on-surface-variant">Action filter:</span>
             {ALL_ACTIONS.map((action) => (
               <label key={action} className="group flex cursor-pointer items-center gap-2">
                 <input
@@ -126,8 +126,8 @@ export function AuditPage() {
             <table className="w-full border-collapse text-left">
               <thead className="sticky top-0 z-10 border-b border-border-subtle bg-surface-container-low">
                 <tr>
-                  <th className="whitespace-nowrap px-6 py-4 font-label-md font-medium text-on-surface-variant">Thời gian</th>
-                  <th className="whitespace-nowrap px-6 py-4 font-label-md font-medium text-on-surface-variant">Hành động</th>
+                  <th className="whitespace-nowrap px-6 py-4 font-label-md font-medium text-on-surface-variant">Time</th>
+                  <th className="whitespace-nowrap px-6 py-4 font-label-md font-medium text-on-surface-variant">Action</th>
                   <th className="whitespace-nowrap px-6 py-4 font-label-md font-medium text-on-surface-variant">Trace ID</th>
                   <th className="whitespace-nowrap px-6 py-4 font-label-md font-medium text-on-surface-variant">User ID</th>
                   <th className="whitespace-nowrap px-6 py-4 font-label-md font-medium text-on-surface-variant">Agent Name</th>
@@ -137,13 +137,13 @@ export function AuditPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant">
-                      Đang tải…
+                      Loading…
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant">
-                      Không có kết quả
+                      No results
                     </td>
                   </tr>
                 ) : (
@@ -196,7 +196,7 @@ export function AuditPage() {
           </div>
           <div className="flex items-center justify-between border-t border-border-subtle bg-surface px-6 py-4">
             <span className="text-body-md text-on-surface-variant">
-              Hiển thị {rows.length} / {data?.count ?? 0} kết quả
+              Showing {rows.length} / {data?.count ?? 0} results
             </span>
           </div>
         </div>

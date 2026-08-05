@@ -1,5 +1,5 @@
 name: legal-research
-description: Domain agent pháp luật — plug-in, không phải core platform
+description: Legal domain agent — plug-in, not core platform
 version: "1.0"
 enabled: true
 
@@ -8,10 +8,15 @@ agents:
 
 triggers:
   - pháp luật
+  - law
   - luật
+  - legislation
   - nghị định
+  - decree
   - điều khoản hợp đồng
+  - contract clause
   - hợp đồng lao động
+  - employment contract
   - legal
   - compliance
 
@@ -25,4 +30,4 @@ domain: legal
 
 settings:
   require_citation: true
-  disclaimer: "Không thay thế tư vấn pháp lý chính thức"
+  disclaimer: "Does not replace formal legal advice"

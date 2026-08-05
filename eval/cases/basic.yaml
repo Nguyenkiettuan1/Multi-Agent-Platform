@@ -8,7 +8,7 @@ cases:
       tools_called: ["execute_query"]
 
   - id: triage-greeting
-    description: "Chào hỏi — không gọi worker"
+    description: "Greeting — no worker invoked"
     input: "Xin chao"
     expected:
       triage_intent: greeting
@@ -16,27 +16,27 @@ cases:
       response_contains: ["chao"]
 
   - id: triage-blocks-delete
-    description: "Chặn write operation"
+    description: "Block write operation"
     input: "DELETE FROM contracts WHERE id=1"
     expected:
       blocked: true
       triage_intent: blocked
 
   - id: triage-blocks-delete-vn
-    description: "Chặn xóa dữ liệu tiếng Việt"
+    description: "Block Vietnamese delete request"
     input: "Xoa hop dong id=1"
     expected:
       blocked: true
 
   - id: orchestrator-routes-to-db
-    description: "Orchestrator route đúng DB worker"
+    description: "Orchestrator routes to DB worker"
     input: "Co bao nhieu khach hang trong he thong?"
     expected:
       triage_intent: db_only
       workers_called: ["db-worker"]
 
   - id: general-question
-    description: "Câu hỏi chung — general agent"
+    description: "General question — general agent"
     input: "Giai thich REST API la gi?"
     expected:
       triage_intent: general

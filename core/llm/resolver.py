@@ -31,13 +31,13 @@ class ResolveSource(str, Enum):
 
 @dataclass
 class ModelResolution:
-    """Kết quả resolve — biết model từ đâu."""
+    """Resolve result — records where the model came from."""
 
     role: str
     primary: ModelEntry
     fallbacks: list[ModelEntry]
     source: ResolveSource
-    source_ref: str  # agent id hoặc pipeline node name
+    source_ref: str  # agent id or pipeline node name
 
 
 def resolve_model(

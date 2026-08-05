@@ -1,12 +1,18 @@
 import type { Citation } from '../api/types'
 
-const REFS_MARKER = '## Nguồn tham khảo'
+const REFS_MARKER = '## References'
+const LEGACY_REFS_MARKER = '## Nguồn tham khảo'
 const CITATION_REF_RE = /\[([DW]\d+)\]/g
 const REF_LINE_RE = /-\s*\*\*\[([DW]\d+)\]\*\*\s*(.+?)\s*—\s*(https?:\/\/\S+)/g
 
 export function stripReferencesBlock(text: string): string {
-  const idx = text.indexOf(REFS_MARKER)
-  return idx >= 0 ? text.slice(0, idx).trimEnd() : text
+  for (const marker of [REFS_MARKER, LEGACY_REFS_MARKER]) {
+    const idx = text.indexOf(marker)
+    if (idx >= 0) {
+      return text.slice(0, idx).trimEnd()
+    }
+  }
+  return text
 }
 
 /** Remove legacy fallback that dumped raw [W1] title — url blocks into the body. */
@@ -16,7 +22,7 @@ export function stripRawSourceDump(text: string): string {
   let skipping = false
 
   for (const line of lines) {
-    if (/^Đã tìm thấy \d+ nguồn/i.test(line.trim())) {
+    if (/^(?:Found \d+ sources|Đã tìm thấy \d+ nguồn)/i.test(line.trim())) {
       skipping = true
       continue
     }
@@ -36,8 +42,11 @@ export function stripRawSourceDump(text: string): string {
 
 /** Parse legacy responses that embedded sources in the body. */
 export function parseCitationsFromResponse(content: string): { body: string; citations: Citation[] } {
-  const markerIdx = content.indexOf(REFS_MARKER)
-  if (markerIdx < 0) {
+  const markerIdx = [REFS_MARKER, LEGACY_REFS_MARKER]
+    .map((marker) => content.indexOf(marker))
+    .find((idx) => idx >= 0)
+
+  if (markerIdx === undefined) {
     return { body: stripRawSourceDump(stripReferencesBlock(content)), citations: [] }
   }
 

@@ -1,17 +1,19 @@
-# My Skill
+# Skill template
 
-Tài liệu cho **developer** — giải thích skill, cách tùy biến.
+Developer documentation — explains the skill layout and how to customize.
 
 ## Files
 
-| File | Vai trò |
-|------|---------|
+| File | Role |
+|------|------|
 | `skill.yaml` | Config: triggers, agents, settings |
-| `SKILL.md` | Instructions cho agent (markdown) |
-| `README.md` | Docs cho người (file này) |
+| `SKILL.md` | Agent instructions (markdown) |
+| `README.md` | Developer docs (this file) |
 
-## Cách tùy biến
+## Customization
 
-- Đổi routing → sửa `triggers` trong `skill.yaml`
-- Đổi behavior agent → sửa `SKILL.md`
-- Đổi metadata → sửa `skill.yaml` (không cần đụng markdown)
+- Routing → edit `triggers` in `skill.yaml`
+- Agent behavior → edit `SKILL.md`
+- Metadata → edit `skill.yaml` without changing markdown
+
+Copy this folder to `skills/<your-skill>/` and register in `agents/registry.yaml`.

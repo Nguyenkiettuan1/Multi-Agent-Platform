@@ -1,11 +1,11 @@
-"""Skill loader — hỗ trợ CẢ HAI: YAML config + Markdown instructions.
+"""Skill loader — supports BOTH YAML config and Markdown instructions.
 
-Cấu trúc mỗi skill:
+Structure per skill:
   skills/<name>/
-    skill.yaml    # Config tùy biến (triggers, agents, version, enabled...)
-    SKILL.md      # Hướng dẫn cho agent (markdown + frontmatter tùy chọn)
-    README.md     # Tài liệu cho developer (optional)
-    reference.md  # Chi tiết bổ sung (optional)
+    skill.yaml    # Custom config (triggers, agents, version, enabled...)
+    SKILL.md      # Agent instructions (markdown + optional frontmatter)
+    README.md     # Developer docs (optional)
+    reference.md  # Additional details (optional)
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ SKILLS_DIR = ROOT / "skills"
 
 @dataclass
 class SkillConfig:
-    """Machine-readable — từ skill.yaml (ưu tiên) hoặc frontmatter SKILL.md."""
+    """Machine-readable — from skill.yaml (preferred) or SKILL.md frontmatter."""
 
     name: str
     description: str = ""
@@ -37,16 +37,16 @@ class SkillConfig:
 
 @dataclass
 class Skill:
-    """Skill đầy đủ — config + nội dung markdown."""
+    """Full skill — config + markdown content."""
 
     config: SkillConfig
-    instructions: str  # Body SKILL.md — agent đọc
-    readme: str = ""  # README.md — cho developer
+    instructions: str  # SKILL.md body — read by agents
+    readme: str = ""  # README.md — for developers
     reference: str = ""  # reference.md — optional
 
 
 def _parse_frontmatter(content: str) -> tuple[dict, str]:
-    """Tách YAML frontmatter và markdown body từ SKILL.md."""
+    """Split YAML frontmatter and markdown body from SKILL.md."""
     if not content.startswith("---"):
         return {}, content
 
@@ -78,12 +78,12 @@ def _config_from_dict(data: dict, skill_name: str) -> SkillConfig:
 
 
 def load_skill(skill_name: str) -> Skill | None:
-    """Load skill đầy đủ: skill.yaml + SKILL.md + README.md."""
+    """Load full skill: skill.yaml + SKILL.md + README.md."""
     skill_dir = SKILLS_DIR / skill_name
     if not skill_dir.is_dir():
         return None
 
-    # 1. skill.yaml — config chính (ưu tiên cao nhất)
+    # 1. skill.yaml — primary config (highest priority)
     yaml_path = skill_dir / "skill.yaml"
     config_data: dict = {}
     if yaml_path.exists():
@@ -96,7 +96,7 @@ def load_skill(skill_name: str) -> Skill | None:
         raw = skill_md_path.read_text(encoding="utf-8")
         frontmatter, body = _parse_frontmatter(raw)
         instructions = body
-        # Frontmatter bổ sung nếu skill.yaml thiếu field
+        # Supplement from frontmatter when skill.yaml is missing fields
         for key, value in frontmatter.items():
             if key not in config_data or config_data[key] in (None, [], ""):
                 config_data[key] = value
@@ -106,11 +106,11 @@ def load_skill(skill_name: str) -> Skill | None:
 
     config = _config_from_dict(config_data, skill_name)
 
-    # 3. README.md — developer docs (không inject vào agent prompt)
+    # 3. README.md — developer docs (not injected into agent prompt)
     readme_path = skill_dir / "README.md"
     readme = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
 
-    # 4. reference.md — append vào instructions nếu có
+    # 4. reference.md — append to instructions when present
     ref_path = skill_dir / "reference.md"
     reference = ref_path.read_text(encoding="utf-8") if ref_path.exists() else ""
     full_instructions = instructions
@@ -126,13 +126,13 @@ def load_skill(skill_name: str) -> Skill | None:
 
 
 def load_skill_instructions(skill_name: str) -> str:
-    """Shortcut — chỉ lấy markdown instructions cho agent."""
+    """Shortcut — return markdown instructions for the agent."""
     skill = load_skill(skill_name)
     return skill.instructions if skill else ""
 
 
 def list_skills(*, enabled_only: bool = True) -> list[Skill]:
-    """Liệt kê tất cả skills trong folder."""
+    """List all skills in the folder."""
     skills: list[Skill] = []
     if not SKILLS_DIR.exists():
         return skills
@@ -147,7 +147,7 @@ def list_skills(*, enabled_only: bool = True) -> list[Skill]:
 
 
 def match_skills(user_message: str, agent_id: str | None = None) -> list[Skill]:
-    """Tìm skills theo trigger keywords và agent assignment."""
+    """Find skills by trigger keywords and agent assignment."""
     msg = user_message.lower()
     matched: list[Skill] = []
 
@@ -158,4 +158,4 @@ def match_skills(user_message: str, agent_id: str | None = None) -> list[Skill]:
         if any(trigger.lower() in msg for trigger in cfg.triggers):
             matched.append(skill)
 
-    return matched[:3]
+    return matched

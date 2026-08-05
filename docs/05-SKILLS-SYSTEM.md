@@ -1,25 +1,25 @@
 # Skills System — YAML config + Markdown instructions
 
-## Nguyên tắc: nhận CẢ HAI
+## Principle: accept BOTH
 
-Mỗi skill có **2 lớp** tách biệt:
+Each skill has **2 separate layers**:
 
-| File | Định dạng | Ai đọc | Mục đích |
+| File | Format | Read by | Purpose |
 |------|-----------|--------|----------|
-| **`skill.yaml`** | YAML | Platform (router, loader, registry) | Tùy biến config: triggers, agents, version, enabled, settings |
-| **`SKILL.md`** | Markdown | Agent (LLM) | Hướng dẫn, quy tắc, ví dụ — nội dung agent đọc |
-| **`README.md`** | Markdown | Developer | Tài liệu cho người — agent **KHÔNG** đọc |
-| `reference.md` | Markdown | Agent (optional) | Chi tiết bổ sung, append vào instructions |
+| **`skill.yaml`** | YAML | Platform (router, loader, registry) | Customizable config: triggers, agents, version, enabled, settings |
+| **`SKILL.md`** | Markdown | Agent (LLM) | Instructions, rules, examples — content the agent reads |
+| **`README.md`** | Markdown | Developer | Documentation for humans — agent does **NOT** read this |
+| `reference.md` | Markdown | Agent (optional) | Additional details, appended to instructions |
 
 ```
 skills/database-query/
-├── skill.yaml      ← Config tùy biến (đổi trigger không cần sửa markdown)
-├── SKILL.md        ← Agent instructions (markdown thuần hoặc + frontmatter)
-├── README.md       ← Docs cho developer
+├── skill.yaml      ← Customizable config (change triggers without editing markdown)
+├── SKILL.md        ← Agent instructions (plain markdown or + frontmatter)
+├── README.md       ← Developer docs
 └── reference.md    ← Optional deep reference
 ```
 
-**Không phải "chỉ YAML" hay "chỉ README"** — cả hai phục vụ mục đích khác nhau.
+**Not "YAML only" or "README only"** — both serve different purposes.
 
 ---
 
@@ -27,7 +27,7 @@ skills/database-query/
 
 ```yaml
 name: database-query
-description: Truy vấn PostgreSQL read-only
+description: Read-only PostgreSQL queries
 version: "1.0"
 enabled: true
 
@@ -45,29 +45,29 @@ max_context_tokens: 2048
 tags:
   - capability
 
-settings:           # Tùy biến riêng — platform đọc
+settings:           # Custom settings — read by platform
   max_rows: 100
   read_only: true
 ```
 
-**Dùng khi:** đổi routing, bật/tắt skill, gán agent, version, business settings.
+**Use when:** changing routing, enabling/disabling skills, assigning agents, versioning, business settings.
 
 ---
 
 ## SKILL.md — Agent instructions
 
-Markdown thuần (khuyến nghị) — **không bắt buộc** frontmatter nếu đã có `skill.yaml`:
+Plain markdown (recommended) — frontmatter is **not required** if `skill.yaml` exists:
 
 ```markdown
 # Database Query Skill
 
-## Quy tắc
-1. CHỈ SELECT
-2. Luôn LIMIT
+## Rules
+1. SELECT only
+2. Always use LIMIT
 ...
 ```
 
-Có thể **thêm frontmatter** làm fallback nếu thiếu `skill.yaml`:
+You may **add frontmatter** as a fallback when `skill.yaml` is missing:
 
 ```markdown
 ---
@@ -75,16 +75,16 @@ name: database-query
 triggers: [query, sql]
 ---
 
-# Nội dung...
+# Content...
 ```
 
-**Loader ưu tiên:** `skill.yaml` > frontmatter SKILL.md > defaults.
+**Loader priority:** `skill.yaml` > SKILL.md frontmatter > defaults.
 
 ---
 
 ## README.md — Developer docs
 
-Giải thích skill cho team — **không inject vào prompt agent**.
+Explains the skill for the team — **not injected into the agent prompt**.
 
 ---
 
@@ -93,29 +93,29 @@ Giải thích skill cho team — **không inject vào prompt agent**.
 ```python
 from core.skills.loader import load_skill, list_skills, match_skills
 
-# Load đầy đủ
+# Full load
 skill = load_skill("database-query")
-skill.config.triggers      # từ skill.yaml
-skill.instructions         # body SKILL.md (+ reference.md)
+skill.config.triggers      # from skill.yaml
+skill.instructions         # SKILL.md body (+ reference.md)
 skill.readme               # README.md
 
-# Match theo user message
+# Match by user message
 matched = match_skills("query database", agent_id="db-worker")
 
-# Chỉ instructions (cho worker handler)
+# Instructions only (for worker handler)
 from core.skills.loader import load_skill_instructions
 text = load_skill_instructions("database-query")
 ```
 
 ---
 
-## Tạo skill mới
+## Creating a new skill
 
 1. Copy `skills/_template/`
-2. Sửa `skill.yaml` — config
-3. Viết `SKILL.md` — instructions cho agent
-4. Viết `README.md` — docs cho team
-5. Thêm vào `agents/registry.yaml` nếu cần
+2. Edit `skill.yaml` — config
+3. Write `SKILL.md` — instructions for the agent
+4. Write `README.md` — docs for the team
+5. Add to `agents/registry.yaml` if needed
 6. Test: `python -c "from core.skills.loader import load_skill; print(load_skill('my-skill'))"`
 
 ---
@@ -124,7 +124,7 @@ text = load_skill_instructions("database-query")
 
 | Scenario | skill.yaml | SKILL.md | Fine-tuning |
 |----------|------------|----------|-------------|
-| Đổi trigger/routing | ✅ | — | — |
-| Đổi quy tắc agent | — | ✅ | — |
-| Đổi output format | — | ✅ | ✅ SFT |
-| Học reasoning | — | ⚠️ | ✅ |
+| Change trigger/routing | ✅ | — | — |
+| Change agent rules | — | ✅ | — |
+| Change output format | — | ✅ | ✅ SFT |
+| Learn reasoning | — | ⚠️ | ✅ |

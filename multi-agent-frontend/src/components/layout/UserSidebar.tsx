@@ -20,7 +20,7 @@ export function UserSidebar({ className = '', onNavigate }: UserSidebarProps) {
       const data = await api.chatSessions(30)
       const fromApi: ChatSession[] = data.items.map((item) => ({
         id: item.session_id,
-        title: truncate(item.title || 'Cuộc hội thoại', 40),
+        title: truncate(item.title || 'Conversation', 40),
         updatedAt: item.updated_at ?? new Date().toISOString(),
       }))
       for (const s of fromApi) {
@@ -68,15 +68,15 @@ export function UserSidebar({ className = '', onNavigate }: UserSidebarProps) {
         className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-outline px-4 py-2 text-label-md text-on-surface transition-colors hover:bg-surface-container-low"
       >
         <MaterialIcon name="add" size={18} />
-        Cuộc hội thoại mới
+        New conversation
       </NavLink>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="mb-2 px-2 text-label-sm uppercase tracking-wider text-on-surface-variant">Gần đây</div>
+        <div className="mb-2 px-2 text-label-sm uppercase tracking-wider text-on-surface-variant">Recent</div>
         {loading ? (
-          <p className="px-2 text-body-md text-on-surface-variant">Đang tải…</p>
+          <p className="px-2 text-body-md text-on-surface-variant">Loading…</p>
         ) : sessions.length === 0 ? (
-          <p className="px-2 text-body-md text-on-surface-variant">Chưa có cuộc hội thoại</p>
+          <p className="px-2 text-body-md text-on-surface-variant">No conversations yet</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {sessions.map((s) => (

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ingest file với chunking — python scripts/ingest_file.py path/to/doc.pdf"""
+"""Ingest file with chunking — python scripts/ingest_file.py path/to/doc.pdf"""
 
 from __future__ import annotations
 

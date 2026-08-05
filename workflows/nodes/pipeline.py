@@ -1,6 +1,6 @@
 """LangGraph nodes — triage → plan → execute → [review] → [synthesize] → eval.
 
-Fast path: DB-only / greeting / general đơn giản → bỏ review + synthesize.
+Fast path: DB-only / greeting / simple general → skip review + synthesize.
 """
 
 from __future__ import annotations
@@ -25,10 +25,11 @@ from workflows.workers.handlers import run_worker
 
 
 async def triage_node(state: GraphState) -> dict:
-    """Bước 1: Phân tích intent + security scan."""
+    """Step 1: Analyze intent + security scan."""
     triage = await analyze_triage_async(
         state["user_message"],
         chat_history=state.get("chat_history"),
+        attachments=state.get("attachments"),
     )
 
     if triage.blocked:
@@ -52,6 +53,7 @@ async def triage_node(state: GraphState) -> dict:
         "redacted_types": [],
         "citations": [],
         "pipeline_steps": triage_steps(triage),
+        "attachments": state.get("attachments") or [],
     }
 
 
@@ -63,18 +65,24 @@ def route_after_triage(state: GraphState) -> str:
 
 
 async def plan_node(state: GraphState) -> dict:
-    """Bước 2: Tạo TaskPlan — LLM chỉ khi multi/complex."""
+    """Step 2: Create TaskPlan — LLM only when multi/complex."""
     triage = state.get("triage")
-    plan = await plan_tasks_async(state["user_message"], triage=triage)
+    plan = await plan_tasks_async(
+        state["user_message"],
+        triage=triage,
+        attachments=state.get("attachments"),
+        chat_history=state.get("chat_history"),
+    )
     return {
         "plan": plan,
         "topology_mode": plan.topology_mode.value,
         "pipeline_steps": plan_steps(plan),
+        "attachments": state.get("attachments") or [],
     }
 
 
 async def execute_workers_node(state: GraphState) -> dict:
-    """Bước 3: Chạy workers — fast path set final_response ngay."""
+    """Step 3: Run workers — fast path sets final_response immediately."""
     plan = state.get("plan")
     triage = state.get("triage")
 
@@ -82,7 +90,7 @@ async def execute_workers_node(state: GraphState) -> dict:
         return {"worker_results": []}
 
     if plan.is_greeting:
-        response = "Xin chào! Tôi là trợ lý AI đa năng. Bạn cần hỗ trợ gì?"
+        response = "Hello! I'm a multi-purpose AI assistant. How can I help?"
         greeting_result = WorkerResult(
             task_id="greeting",
             agent=AgentId.DEFAULT,
@@ -100,7 +108,11 @@ async def execute_workers_node(state: GraphState) -> dict:
     done: list[PipelineStep] = []
 
     for task in plan.subtasks:
-        result = await run_worker(task, chat_history=state.get("chat_history"))
+        result = await run_worker(
+            task,
+            chat_history=state.get("chat_history"),
+            attachments=state.get("attachments"),
+        )
         results_list.append(result)
         done.extend(worker_done_steps([result]))
 
@@ -109,7 +121,7 @@ async def execute_workers_node(state: GraphState) -> dict:
         "pipeline_steps": running + done,
     }
 
-    # Fast path: trả thẳng kết quả worker, không qua synthesizer
+    # Fast path: return worker result directly, skip synthesizer
     if triage and triage.skip_synthesize and len(results_list) == 1:
         raw = results_list[0].summary
         redacted, types = redact_output(raw)
@@ -167,7 +179,7 @@ async def synthesize_node(state: GraphState) -> dict:
     results = state.get("worker_results", [])
 
     if not results:
-        return {"final_response": "Không có kết quả từ workers."}
+        return {"final_response": "No results from workers."}
 
     llm_response = await synthesize_with_llm(
         state["user_message"],
@@ -186,7 +198,7 @@ async def synthesize_node(state: GraphState) -> dict:
 
 
 async def eval_node(state: GraphState) -> dict:
-    """Bước cuối: append citations + đánh giá chất lượng response."""
+    """Final step: append citations + evaluate response quality."""
     response = state.get("final_response", "")
     worker_results = state.get("worker_results", [])
     citations: list[dict] = []
@@ -223,7 +235,7 @@ async def eval_node(state: GraphState) -> dict:
 
 
 def _template_response(plan, results, state) -> str:
-    parts = [f"**Yêu cầu:** {plan.main_task if plan else state['user_message']}\n"]
+    parts = [f"**Request:** {plan.main_task if plan else state['user_message']}\n"]
     for r in results:
         parts.append(f"\n### [{r.agent.value}]\n{r.summary}")
     return "\n".join(parts)

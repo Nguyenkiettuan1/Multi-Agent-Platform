@@ -11,7 +11,7 @@ from typing_extensions import TypedDict
 
 
 class AgentId(str, Enum):
-    """Platform đa năng — legal chỉ là MỘT domain agent."""
+    """General-purpose platform — legal is just ONE domain agent."""
 
     GENERAL = "general-agent"
     DB_WORKER = "db-worker"
@@ -77,6 +77,18 @@ class SubTask(BaseModel):
     assigned_agent: AgentId
     depends_on: list[str] = Field(default_factory=list)
     status: Literal["pending", "running", "done", "failed"] = "pending"
+    task_kind: str = ""
+    tool_id: str = ""
+    tool_arguments: dict = Field(default_factory=dict)
+    high_accuracy: bool = False
+
+
+class ChatAttachment(BaseModel):
+    """Image/file attachment from chat UI — OCR reads via image_base64."""
+
+    filename: str = "attachment"
+    mime_type: str = "application/octet-stream"
+    data: str = Field(..., description="Base64 (with or without data:... prefix)")
 
 
 class TaskPlan(BaseModel):
@@ -103,6 +115,7 @@ class GraphState(TypedDict):
     user_id: str
     trace_id: str
     chat_history: list[dict]
+    attachments: list[dict]
     triage: TriageResult | None
     plan: TaskPlan | None
     topology_mode: str

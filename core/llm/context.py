@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class LLMUsageTracker:
-    """Track model calls trong một request."""
+    """Track model calls within a request."""
 
     calls: list[dict] = field(default_factory=list)
 

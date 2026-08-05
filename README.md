@@ -1,185 +1,196 @@
-# PHANLAW Multi-Agent Platform
+# Multi-Agent Platform
 
-**Nền tảng AI đa năng** — xử lý mọi loại yêu cầu (như GPT), điều phối nhiều agent chuyên biệt theo task.
+A **general-purpose AI orchestration platform** — like GPT for everyday Q&A, plus specialized agents for database queries, research, document tools (OCR, translate), and optional domain plug-ins (e.g. legal).
 
-> Pháp luật chỉ là **một domain agent** (`legal-agent`) trong hệ thống — không phải sản phẩm AI chuyên luật.
+PostgreSQL-first · LangGraph pipeline · MCP tools · Skills · Chat UI
 
-PostgreSQL local-first · Multi-task · A2A · MCP · Skills plug-in · Fine-tuning
+---
 
+## Features
 
+| Capability | Agent / module |
+|------------|----------------|
+| General Q&A | `general-agent` |
+| PostgreSQL read-only queries | `db-worker` |
+| Knowledge base + web search | `research-worker` |
+| OCR, translate, image merge | `action-worker` + MCP |
+| Optional domain (legal, etc.) | `legal-agent` + skills |
 
-## Tài liệu
+**Pipeline:** Triage → Plan → Workers → (Review) → (Synthesize) → Eval
 
+---
 
-
-| Tài liệu | Mô tả |
-
-|----------|--------|
-
-| [Kiến trúc v2](docs/01-ARCHITECTURE.md) | 3-Plane, agent roles, execution topologies |
-
-| [Hạ tầng PostgreSQL](docs/09-INFRASTRUCTURE.md) | Local Docker → Azure cloud migration |
-
-| [GitHub Reference Map](docs/10-GITHUB-ARCHITECTURE-MAP.md) | **Mỗi quyết định ↔ nguồn repo GitHub** |
-
-| [Model Tiering](docs/06-MODEL-TIERING.md) | Phân cấp model T0–T3, routing |
-
-| [Context Engineering](docs/07-CONTEXT-ENGINEERING.md) | Context isolation, token budget |
-
-| [Reference Repos](docs/08-REFERENCE-REPOS.md) | Survey frameworks |
-
-| [Roadmap](docs/02-ROADMAP.md) | Phase 0 → Production |
-
-| [AI Engineering Guide](docs/03-AI-ENGINEERING-GUIDE.md) | Kiến thức nền |
-
-| [A2A & MCP](docs/04-A2A-MCP-GUIDE.md) | Protocols |
-
-| [Skills System](docs/05-SKILLS-SYSTEM.md) | Domain knowledge |
-
-
-
-## Cấu trúc thư mục
-
-
+## Repository layout
 
 ```
-
 multi-agent/
-
-├── agents/                 # Agent definitions (orchestrator, db-worker, ...)
-
-├── mcp-servers/            # MCP tool servers (sql-mcp → PostgreSQL)
-
-├── core/                   # Runtime: registry, checkpointer
-├── workflows/              # LangGraph pipeline
-├── gateway/                # FastAPI API
-
-├── skills/                 # Domain skills (markdown)
-
-├── eval/                   # Eval cases
-
-├── infra/
-
-│   ├── database/migrations/  # PostgreSQL schemas (app + platform)
-
-│   └── azure.yaml          # Cloud deploy (Phase 2+)
-
-├── scripts/                # db_migrate.py, utilities
-
-├── gateway/                # API gateway (planned)
-
-├── docker-compose.yml      # PostgreSQL + Redis + pgAdmin
-
-└── docs/
-
+├── gateway/              # FastAPI API (chat, admin, MCP catalog)
+├── workflows/            # LangGraph: graph, planner, workers, state
+├── core/                 # Control plane, MCP hub, LLM client, checkpointer
+├── agents/               # Agent registry + definitions
+├── mcp-servers/          # Stdio MCP servers (SQL, search, …)
+├── config/               # mcp_servers.yaml, models.yaml, media_tasks.yaml
+├── skills/               # Domain instructions (markdown)
+├── multi-agent-frontend/ # React chat + admin UI (Vite)
+├── infra/database/       # SQL migrations (app + platform schemas)
+├── scripts/              # db_migrate, seed, eval
+├── fixtures/             # Sample knowledge for RAG
+├── docs/                 # Architecture & guides (see docs/README.md)
+└── docker-compose.yml    # PostgreSQL + Redis + pgAdmin
 ```
 
+---
 
+## Quick start
 
-## Quick Start
+**Full guide:** [docs/12-LOCAL-SETUP.md](docs/12-LOCAL-SETUP.md)
 
-**Hướng dẫn đầy đủ:** [docs/12-LOCAL-SETUP.md](docs/12-LOCAL-SETUP.md) — **Cách A: Docker** hoặc **Cách B: cài tay** PostgreSQL + pgAdmin.
+### Prerequisites
 
-**RAG, Azure Search, audit, dashboard:** [docs/13-RAG-OBSERVABILITY-GUIDE.md](docs/13-RAG-OBSERVABILITY-GUIDE.md)
+- Python **3.11+**
+- Docker Desktop (recommended) or local PostgreSQL 16 + pgvector
+- At least one LLM provider key (Azure OpenAI or OpenRouter)
 
-**Feedback loop (Q&A → train):** [docs/15-FEEDBACK-LOOP.md](docs/15-FEEDBACK-LOOP.md)
-
-**Backlog kỹ thuật:** [docs/16-REMAINING-ISSUES.md](docs/16-REMAINING-ISSUES.md)
-
-**Frontend design brief (gửi team UI/UX):** [docs/FRONTEND-DESIGN-BRIEF.md](docs/FRONTEND-DESIGN-BRIEF.md)
+### 1. Infrastructure (Docker)
 
 ```bash
-# Xem docs/12-LOCAL-SETUP.md — Cách A (Docker) hoặc Cách B (cài tay)
-
-# Cách A — Docker
 docker compose up -d
-# pgAdmin: http://localhost:5050  (admin@local.dev / admin)
-
-# Python env
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-pip install -r requirements.txt
-copy .env.example .env
-
-# Database
-python scripts/db_migrate.py
-python scripts/seed.py
-python scripts/seed_vectors.py
-
-# (Tùy chọn) Azure AI Search
-python scripts/setup_azure_search.py --upload
-
-# Chạy API
-python -m gateway.main
-# Swagger: http://localhost:8000/docs
 ```
 
+| Service | Host port | Purpose |
+|---------|-----------|---------|
+| `multiagent-postgres` | **5434** | PostgreSQL 16 + pgvector |
+| `multiagent-redis` | 6379 | Redis (optional) |
+| `multiagent-pgadmin` | 5050 | pgAdmin (`admin@local.dev` / `admin`) |
 
+### 2. Python environment
 
-## Database
+```bash
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
 
+pip install -r requirements.txt
+cp .env.example .env   # Windows: copy .env.example .env
+```
 
+Set database URLs in `.env` (Docker default port **5434**):
 
-| Schema | Mục đích | Connection |
+```env
+DATABASE_URL=postgresql+psycopg://agent_reader:agent_reader_local@localhost:5434/multiagent?options=-csearch_path%3Dapp
+PLATFORM_DATABASE_URL=postgresql+psycopg://multiagent:multiagent@localhost:5434/multiagent?options=-csearch_path%3Dplatform
+MIGRATE_DATABASE_URL=postgresql+psycopg://multiagent:multiagent@localhost:5434/multiagent
+```
 
-|--------|----------|------------|
+Add **Azure OpenAI** or **OpenRouter** keys (see [Local Setup](docs/12-LOCAL-SETUP.md#llm-providers)).
 
-| `app` | Dữ liệu nghiệp vụ (contracts, clients) | `DATABASE_URL` (agent_reader, read-only) |
+### 3. Database
 
-| `platform` | Agent runtime (checkpoints, audit, DAG) | `PLATFORM_DATABASE_URL` |
+```bash
+python scripts/db_migrate.py
+python scripts/seed.py
+python scripts/seed_vectors.py   # requires embedding provider
+```
 
+### 4. Run API
 
+```bash
+python -m gateway.main
+```
 
-**Local:** Docker PostgreSQL 16. **Cloud:** Azure Database for PostgreSQL — chỉ đổi env vars.
+| URL | Purpose |
+|-----|---------|
+| http://localhost:8000/docs | Swagger UI |
+| http://localhost:8000/health | Health check |
+| `POST /api/v1/chat` | Chat (sync) |
+| `POST /api/v1/chat/stream` | Chat (SSE) |
 
+**Example:**
 
+```bash
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello"}'
+```
 
-## Nguyên tắc thiết kế
+### 5. Frontend (optional)
 
+```bash
+cd multi-agent-frontend
+npm install
+npm run dev
+```
 
+Open http://localhost:5173 — proxies API to `http://localhost:8000`.
 
-1. **PostgreSQL từ đầu** — Local = Prod checkpointer (PostgresSaver), không SQLite.
+---
 
-2. **Role ≠ Model** — Triage (T0) → Planner (T2) → Worker (T1) → Reviewer → Synthesizer.
+## Database schemas
 
-3. **Context isolation** — Subagent isolated context, shared state schema.
+| Schema | Purpose | Connection |
+|--------|---------|------------|
+| `app` | Business data (contracts, clients, knowledge) | `DATABASE_URL` (`agent_reader`, read-only) |
+| `platform` | LangGraph checkpoints, audit, feedback | `PLATFORM_DATABASE_URL` |
 
-4. **4 execution modes** — Direct / Planned / Reviewed / Council.
+Migrations: `python scripts/db_migrate.py` only (not Docker initdb).
 
-5. **MCP + A2A** — Tools qua MCP, inter-agent qua A2A.
+---
 
-6. **GitHub-informed** — Mỗi quyết định có nguồn tham chiếu (`docs/10-GITHUB-ARCHITECTURE-MAP.md`).
+## MCP & tools
 
+Runtime catalog: `config/mcp_servers.yaml` + `GET /api/v1/mcp/catalog`
 
+| Server | Type | Examples |
+|--------|------|----------|
+| `builtin-ocr` | internal | Image OCR (Tesseract → vision LLM) |
+| `builtin-translate` | internal | Text translation |
+| `builtin-image` | internal | Merge images |
+| `sql-server` | internal | Read-only SQL |
+| `search-server` | internal | RAG + web search |
+| `paddleocr` | external MCP | High-accuracy OCR (optional) |
 
-## Tech Stack
+**Cursor IDE** uses `.cursor/mcp.json` (separate from app runtime). See [docs/17-EXTERNAL-MCP.md](docs/17-EXTERNAL-MCP.md).
 
+---
 
+## Design principles
 
-| Layer | Local | Cloud (sau) |
+1. **PostgreSQL from day one** — LangGraph `PostgresSaver`, no SQLite in production paths.
+2. **Role ≠ model** — Triage (cheap) → Planner → Workers → Reviewer → Synthesizer.
+3. **Context isolation** — Worker results merged in state; subagents do not leak raw context.
+4. **Tools via MCP** — LLM routes; Python/MCP executes (OCR, SQL, search).
+5. **Plug-in domains** — New agent = `agents/registry.yaml` + skill + handler; core workflow unchanged.
 
-|-------|-------|---------------|
+---
 
-| Database | PostgreSQL 16 (Docker) | Azure PostgreSQL Flexible |
+## Documentation
 
-| Cache | Redis 7 (Docker) | Azure Cache for Redis |
+| Doc | Description |
+|-----|-------------|
+| [docs/README.md](docs/README.md) | **Documentation index** |
+| [docs/12-LOCAL-SETUP.md](docs/12-LOCAL-SETUP.md) | Local dev (Docker / native Postgres) |
+| [docs/00-PROJECT-GUIDE.md](docs/00-PROJECT-GUIDE.md) | Layer map & folder roles |
+| [docs/01-ARCHITECTURE.md](docs/01-ARCHITECTURE.md) | 3-plane architecture |
+| [docs/17-EXTERNAL-MCP.md](docs/17-EXTERNAL-MCP.md) | MCP for Cursor vs app |
+| [AGENTS.md](AGENTS.md) | Agent types & MS course mapping |
 
-| `workflows/` + `core/` | Workflow engine | LangGraph PostgresSaver |
+---
 
-| Agents | Local / Foundry dev | Azure AI Foundry Hosted |
+## Tech stack
 
-| Tools | MCP (stdio) | MCP (SSE/HTTP) |
+| Layer | Local | Cloud (future) |
+|-------|-------|----------------|
+| Database | PostgreSQL 16 + pgvector | Azure PostgreSQL |
+| Workflow | LangGraph + PostgresSaver | Same |
+| API | FastAPI | Container / App Service |
+| LLM | Azure OpenAI / OpenRouter | Azure AI Foundry |
+| Tools | MCP stdio + internal Python | MCP HTTP/SSE |
+| UI | React + Vite | Static / CDN |
 
-| Inter-agent | A2A | A2A (Foundry RemoteA2A) |
-
-| Observability | Console | App Insights + Langfuse |
-
-
+---
 
 ## License
 
-
-
-Proprietary — PHANLAW Enterprise
-
-
+Private — personal project.

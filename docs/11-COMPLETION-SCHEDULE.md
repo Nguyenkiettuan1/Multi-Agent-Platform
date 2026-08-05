@@ -1,26 +1,26 @@
-# Lịch hoàn thiện platform — PHANLAW Multi-Agent
+# Platform Completion Schedule — Multi-Agent Platform
 
-> Cập nhật: sau sprint RAG + Control Plane
+> Updated: after RAG + Control Plane sprint
 
-## Quyết định kiến trúc RAG
+## RAG Architecture Decisions
 
-| Câu hỏi | Quyết định |
+| Question | Decision |
 |---------|------------|
-| Vector DB? | **PostgreSQL + pgvector** — cùng DB, local = prod |
-| Azure Search? | **Bổ sung** — hybrid search, cloud scale |
-| Qdrant? | **Không cần** — trừ khi >10M vectors |
+| Vector DB? | **PostgreSQL + pgvector** — same DB, local = prod |
+| Azure Search? | **Supplement** — hybrid search, cloud scale |
+| Qdrant? | **Not needed** — unless >10M vectors |
 
 ```
-Query → Azure AI Search (nếu có key)
-      → pgvector semantic (nếu có embedding API)
-      → PostgreSQL FTS (fallback, luôn chạy được)
+Query → Azure AI Search (if key available)
+      → pgvector semantic (if embedding API available)
+      → PostgreSQL FTS (fallback, always works)
 ```
 
 ---
 
-## Trạng thái hiện tại
+## Current Status
 
-### ✅ Hoàn thành
+### ✅ Completed
 
 | Module | File |
 |--------|------|
@@ -45,7 +45,7 @@ Query → Azure AI Search (nếu có key)
 | LLM-as-judge eval | `core/control/llm_judge.py` |
 | Upload + chunking | `scripts/ingest_file.py`, `POST /admin/knowledge/upload` |
 
-### 🔄 Cần config (không phải code)
+### 🔄 Configuration needed (not code)
 
 ```bash
 docker compose up -d
@@ -58,50 +58,50 @@ uvicorn gateway.main:app --reload
 
 ---
 
-## Lịch tiếp theo
+## Upcoming Schedule
 
-### Tuần 1 — Chạy production local
+### Week 1 — Run production locally
 
-| Ngày | Task | Exit criteria |
+| Day | Task | Exit criteria |
 |------|------|---------------|
-| 1 | Docker + migrate + seed | DB + vectors có data |
-| 2 | OpenRouter API key | Chat LLM thật |
-| 3 | Azure Search index | Hybrid search trả kết quả cloud |
-| 4 | End-to-end test | 6/6 eval pass với DB live |
+| 1 | Docker + migrate + seed | DB + vectors have data |
+| 2 | OpenRouter API key | Real LLM chat |
+| 3 | Azure Search index | Hybrid search returns cloud results |
+| 4 | End-to-end test | 6/6 eval pass with live DB |
 | 5 | Load test 50 requests | P95 < 10s |
 
-### Tuần 2 — Enterprise hardening
+### Week 2 — Enterprise hardening
 
-| Task | Mô tả |
+| Task | Description |
 |------|-------|
-| Entra ID auth | Thay API key bằng OAuth2 |
+| Entra ID auth | Replace API key with OAuth2 |
 | Langfuse tracing | ✅ Trace LLM + workflow span (`core/observability/tracing.py`) |
-| LLM-as-judge eval | Eval score bằng model |
+| LLM-as-judge eval | Eval score via model |
 | action-worker HITL | Human approval flow |
-| A2A protocol | Agent gọi agent qua HTTP |
+| A2A protocol | Agent calls agent over HTTP |
 
-### Tuần 3–4 — Self-improvement (MLOps)
+### Week 3–4 — Self-improvement (MLOps)
 
-| Task | Mô tả |
+| Task | Description |
 |------|-------|
 | Feedback → dataset | ✅ Export `platform.feedback` — `docs/15-FEEDBACK-LOOP.md` |
 | Prompt optimizer | DSPy / Foundry optimizer |
-| Fine-tune (optional) | SFT trên domain legal |
+| Fine-tune (optional) | SFT on legal domain |
 | Dynamic model routing | RouteLLM pattern |
 
-### Tuần 5–6 — Cloud deploy
+### Week 5–6 — Cloud deploy
 
-| Task | Mô tả |
+| Task | Description |
 |------|-------|
 | Azure Container Apps | Deploy gateway |
-| Azure PostgreSQL Flexible | Migrate từ local |
+| Azure PostgreSQL Flexible | Migrate from local |
 | Azure AI Search production index | Sync documents |
 | Key Vault | Secrets management |
 | CI/CD GitHub Actions | pytest + eval on PR |
 
 ---
 
-## Checklist trước go-live
+## Pre go-live Checklist
 
 - [ ] `pytest tests/` — all pass
 - [ ] `python scripts/run_eval.py` — all pass
@@ -109,5 +109,5 @@ uvicorn gateway.main:app --reload
 - [ ] `PLATFORM_DATABASE_URL` set
 - [ ] Azure Search index populated
 - [ ] pgvector embeddings seeded
-- [ ] Backup strategy cho PostgreSQL
-- [ ] Rate limiting trên gateway
+- [ ] Backup strategy for PostgreSQL
+- [ ] Rate limiting on gateway

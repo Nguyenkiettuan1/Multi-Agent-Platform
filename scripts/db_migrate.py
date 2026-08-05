@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run database migrations — chỉ chạy thủ công: python scripts/db_migrate.py"""
+"""Run database migrations — run manually: python scripts/db_migrate.py"""
 
 import sys
 from pathlib import Path

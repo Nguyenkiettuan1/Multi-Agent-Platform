@@ -26,10 +26,10 @@ async def run_db_worker(task: SubTask, *, chat_history: list[dict] | None = None
             AgentId.DB_WORKER,
             task.description,
             skill_name="database-query",
-            extra_context=f"SQL:\n{sql}\n\nKết quả:\n{db_data}",
+            extra_context=f"SQL:\n{sql}\n\nResults:\n{db_data}",
             chat_history=chat_history,
         )
-        summary = llm_summary or f"Kết quả DB: {db_data}"
+        summary = llm_summary or f"DB results: {db_data}"
 
         return WorkerResult(
             task_id=task.id,
@@ -43,7 +43,7 @@ async def run_db_worker(task: SubTask, *, chat_history: list[dict] | None = None
         return WorkerResult(
             task_id=task.id,
             agent=AgentId.DB_WORKER,
-            summary=f"Từ chối: {exc}",
+            summary=f"Rejected: {exc}",
             success=False,
             tools_called=tools_called,
         )
@@ -52,7 +52,7 @@ async def run_db_worker(task: SubTask, *, chat_history: list[dict] | None = None
         return WorkerResult(
             task_id=task.id,
             agent=AgentId.DB_WORKER,
-            summary=f"Lỗi DB: {exc}",
+            summary=f"DB error: {exc}",
             success=False,
             tools_called=tools_called,
         )

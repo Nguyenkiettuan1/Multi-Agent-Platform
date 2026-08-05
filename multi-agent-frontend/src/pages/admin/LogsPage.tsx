@@ -76,7 +76,7 @@ export function LogsPage() {
           <div>
             <h1 className="text-display-lg text-on-surface">System Logs</h1>
             <p className="mt-1 text-body-md text-on-surface-variant">
-              Sự kiện audit từ backend (chat_start, chat_complete, chat_error).
+              Audit events from the backend (chat_start, chat_complete, chat_error).
             </p>
           </div>
           <div className="flex gap-2">
@@ -87,7 +87,7 @@ export function LogsPage() {
               className="flex items-center gap-2 rounded bg-primary px-4 py-2 text-label-md text-on-primary hover:bg-on-surface disabled:opacity-50"
             >
               <MaterialIcon name="refresh" size={18} className={loading ? 'animate-spin' : ''} />
-              Làm mới
+              Refresh
             </button>
           </div>
         </div>
@@ -132,9 +132,9 @@ export function LogsPage() {
           </div>
           <div className="flex-1 overflow-y-auto font-body-code text-body-code">
             {loading ? (
-              <p className="p-6 text-on-surface-variant">Đang tải…</p>
+              <p className="p-6 text-on-surface-variant">Loading…</p>
             ) : logs.length === 0 ? (
-              <p className="p-6 text-on-surface-variant">Không có log</p>
+              <p className="p-6 text-on-surface-variant">No logs</p>
             ) : (
               logs.map((log) => (
                 <div
@@ -176,7 +176,7 @@ export function LogsPage() {
           </div>
           <div className="flex items-center justify-between border-t border-border-subtle bg-surface-container-lowest p-4 text-on-surface-variant">
             <span className="text-body-md">
-              Hiển thị {logs.length} / {data?.count ?? 0} entries
+              Showing {logs.length} / {data?.count ?? 0} entries
             </span>
           </div>
         </div>

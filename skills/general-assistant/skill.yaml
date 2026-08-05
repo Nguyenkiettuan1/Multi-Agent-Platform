@@ -1,5 +1,5 @@
 name: general-assistant
-description: Trợ lý đa năng — Q&A, viết, giải thích (như GPT)
+description: Versatile assistant — Q&A, writing, explanations (GPT-like)
 version: "1.0"
 enabled: true
 
@@ -8,11 +8,14 @@ agents:
 
 triggers:
   - giải thích
+  - explain
   - viết
+  - write
   - tóm tắt
+  - summarize
   - là gì
-  - how to
   - what is
+  - how to
   - brainstorm
 
 model_tier: T1

@@ -60,7 +60,7 @@ def citations_from_web_results(results: list[dict]) -> list[SourceCitation]:
 
 def format_context_for_llm(citations: list[SourceCitation]) -> str:
     if not citations:
-        return "Không tìm thấy tài liệu liên quan."
+        return "No relevant documents found."
     parts = []
     for c in citations:
         header = f"[{c.ref_id}] {c.title}"
@@ -75,7 +75,7 @@ def format_context_for_llm(citations: list[SourceCitation]) -> str:
 def format_references_block(citations: list[SourceCitation]) -> str:
     if not citations:
         return ""
-    lines = ["## Nguồn tham khảo"]
+    lines = ["## References"]
     for c in citations:
         if c.url:
             lines.append(f"- **[{c.ref_id}]** {c.title} — {c.url}")
@@ -87,12 +87,12 @@ def format_references_block(citations: list[SourceCitation]) -> str:
 
 
 CITATION_INSTRUCTION = """
-BẮT BUỘC khi trả lời:
-- Đọc kỹ nội dung từng nguồn [D1], [W2]... rồi TỔNG HỢP thành câu trả lời mạch lạc (tiếng Việt).
-- Mỗi fact quan trọng gắn mã nguồn inline: [W1], [D2] — KHÔNG copy nguyên block tiêu đề/URL/snippet.
-- KHÔNG viết "Đã tìm thấy X nguồn" hay liệt kê lại danh sách nguồn.
-- KHÔNG thêm mục "## Nguồn tham khảo" (UI hiển thị riêng).
-- Không bịa. Thiếu thông tin → nói rõ.
+REQUIRED when answering:
+- Read each source [D1], [W2], etc. carefully, then SYNTHESIZE a coherent answer.
+- Attach inline source tags to important facts: [W1], [D2] — do NOT copy title/URL/snippet blocks verbatim.
+- Do NOT write "Found X sources" or list sources again.
+- Do NOT add a "## References" section (the UI shows sources separately).
+- Do not hallucinate. If information is missing, say so clearly.
 """.strip()
 
 
@@ -115,9 +115,12 @@ def merge_worker_citations(worker_results) -> list[SourceCitation]:
 
 def strip_references_block(text: str) -> str:
     """Remove trailing references section from response body (UI uses structured citations)."""
-    marker = "## Nguồn tham khảo"
+    marker = "## References"
+    legacy = "## Nguồn tham khảo"
     if marker in text:
         return text.split(marker, 1)[0].rstrip()
+    if legacy in text:
+        return text.split(legacy, 1)[0].rstrip()
     return text
 
 

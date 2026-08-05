@@ -1,11 +1,11 @@
-"""Triage — phân tích intent, complexity, routing path.
+"""Triage — analyze intent, complexity, routing path.
 
 Ref: LangGraph router, OpenAI Agents SDK handoff, Anthropic triage pattern.
 
-Chiến lược:
-  1. Rule-based cho fast path chắc chắn (blocked, greeting, capability, DB rõ ràng)
-  2. LLM triage khi có lịch sử chat hoặc intent mơ hồ (xem llm_triage.py)
-  3. Rule-based fallback khi LLM tắt/lỗi
+Strategy:
+  1. Rule-based for certain fast paths (blocked, greeting, capability, clear DB)
+  2. LLM triage when chat history exists or intent is ambiguous (see llm_triage.py)
+  3. Rule-based fallback when LLM is off or fails
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from workflows.state import IntentType, TriageResult
 
 
 def _normalize(msg: str) -> str:
-    """Chuẩn hóa tiếng Việt — hỗ trợ input không dấu."""
+    """Normalize Vietnamese text — supports input without diacritics."""
     lower = msg.lower().strip()
     nfkd = unicodedata.normalize("NFKD", lower)
     return "".join(c for c in nfkd if not unicodedata.combining(c))
@@ -31,7 +31,7 @@ def build_triage_result(
     requires_planning: bool | None = None,
     security_flags: list[str] | None = None,
 ) -> TriageResult:
-    """Map intent → routing flags (dùng chung rule + LLM triage)."""
+    """Map intent → routing flags (shared by rule + LLM triage)."""
     flags = security_flags or []
 
     if intent == IntentType.BLOCKED:
@@ -116,7 +116,7 @@ def build_triage_result(
 
 
 def _try_fast_path_rules(msg: str, security_flags: list[str]) -> TriageResult | None:
-    """Chỉ các case rule chắc chắn — không cần LLM."""
+    """Only rule-certain cases — no LLM needed."""
     if _is_capability_question(msg):
         return build_triage_result(IntentType.GENERAL, security_flags=security_flags)
 
@@ -136,7 +136,7 @@ def _try_fast_path_rules(msg: str, security_flags: list[str]) -> TriageResult | 
 
 
 def analyze_triage_rules(user_message: str) -> TriageResult:
-    """Rule-based triage — fallback khi LLM không dùng được."""
+    """Rule-based triage — fallback when LLM is unavailable."""
     security = scan_input(user_message)
     if security.blocked:
         return TriageResult(
@@ -185,7 +185,7 @@ def should_use_llm_triage(
     chat_history: list[dict] | None,
     rule_result: TriageResult,
 ) -> bool:
-    """Khi nào gọi LLM thay vì tin rule thuần."""
+    """When to call LLM instead of trusting rules alone."""
     if chat_history:
         return True
 
@@ -202,8 +202,24 @@ def should_use_llm_triage(
 async def analyze_triage_async(
     user_message: str,
     chat_history: list[dict] | None = None,
+    *,
+    attachments: list[dict] | None = None,
 ) -> TriageResult:
-    """Triage chính — rule fast path → LLM (có context) → rule fallback."""
+    """Primary triage — rule fast path → LLM (with context) → rule fallback."""
+    attachment_result = _triage_from_attachments(attachments)
+    if attachment_result:
+        security = scan_input(user_message)
+        attachment_result.security_flags = security.flags
+        if security.blocked:
+            return TriageResult(
+                intent=IntentType.BLOCKED,
+                complexity=0.0,
+                blocked=True,
+                block_reason=security.block_reason,
+                security_flags=security.flags,
+            )
+        return attachment_result
+
     security = scan_input(user_message)
     if security.blocked:
         return TriageResult(
@@ -232,9 +248,17 @@ async def analyze_triage_async(
     return rule_result
 
 
-def analyze_triage(user_message: str, chat_history: list[dict] | None = None) -> TriageResult:
-    """Sync API — rule-only (tests, planner không có history)."""
+def analyze_triage(
+    user_message: str,
+    chat_history: list[dict] | None = None,
+    *,
+    attachments: list[dict] | None = None,
+) -> TriageResult:
+    """Sync API — rule-only (tests, planner without history)."""
     _ = chat_history
+    attachment_result = _triage_from_attachments(attachments)
+    if attachment_result:
+        return attachment_result
     return analyze_triage_rules(user_message)
 
 
@@ -257,13 +281,14 @@ def _is_capability_question(msg: str) -> bool:
 
 
 def detect_capabilities(msg: str) -> dict[str, bool]:
-    """Public API — dùng cho planner multi-task."""
+    """Public API — used by multi-task planner (sync heuristic)."""
     lower = _normalize(msg)
     return {
         "db": _needs_db(lower),
         "legal": _needs_legal(lower),
         "research": _needs_research(lower),
         "action": _needs_action(lower),
+        "tools": False,
     }
 
 
@@ -302,3 +327,12 @@ def _needs_action(msg: str) -> bool:
         "call api", "thuc hien", "execute action",
     ]
     return any(k in msg for k in keywords)
+
+
+def _triage_from_attachments(attachments: list[dict] | None) -> TriageResult | None:
+    """Chat image attachment → action-worker OCR."""
+    from core.planning.media_tasks import has_image_attachments
+
+    if has_image_attachments(attachments):
+        return build_triage_result(IntentType.ACTION, complexity=0.35)
+    return None

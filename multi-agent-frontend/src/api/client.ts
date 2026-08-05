@@ -89,7 +89,7 @@ export const api = {
 
     const reader = res.body?.getReader()
     if (!reader) {
-      throw new ApiError('Stream không khả dụng', 500)
+      throw new ApiError('Stream unavailable', 500)
     }
 
     const decoder = new TextDecoder()
@@ -119,7 +119,7 @@ export const api = {
         } else if (event === 'complete') {
           yield payload as ChatResponse
         } else if (event === 'error') {
-          throw new ApiError(String(payload.message ?? 'Lỗi stream'), 500)
+          throw new ApiError(String(payload.message ?? 'Stream error'), 500)
         }
       }
     }

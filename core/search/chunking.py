@@ -122,7 +122,7 @@ def _make_chunk(index: int, content: str, start_char: int, metadata: dict | None
 
 
 def analyze_chunks(chunks: list[TextChunk], *, overlap_chars: int | None = None) -> ChunkAnalysis:
-    """Heuristic quality check — dùng trước khi ingest."""
+    """Heuristic quality check — run before ingest."""
     settings = get_settings()
     overlap = overlap_chars if overlap_chars is not None else settings.chunk_overlap
 
@@ -143,17 +143,17 @@ def analyze_chunks(chunks: list[TextChunk], *, overlap_chars: int | None = None)
 
     for i, c in enumerate(chunks):
         if c.char_count < 80:
-            warnings.append(f"Chunk {i}: quá ngắn ({c.char_count} chars) — có thể thiếu ngữ cảnh")
+            warnings.append(f"Chunk {i}: too short ({c.char_count} chars) — may lack context")
         if c.char_count > settings.chunk_size * 1.5:
-            warnings.append(f"Chunk {i}: quá dài ({c.char_count} chars) — cân nhắc giảm chunk_size")
+            warnings.append(f"Chunk {i}: too long ({c.char_count} chars) — consider reducing chunk_size")
         if c.content.count("\n") > 15:
-            warnings.append(f"Chunk {i}: nhiều dòng — có thể gộp paragraph chưa tốt")
+            warnings.append(f"Chunk {i}: many lines — paragraphs may not be merged well")
 
     if max_c > min_c * 3 and len(chunks) > 2:
-        warnings.append("Độ dài chunk chênh lệch lớn — cân nhắc chỉnh chunk_size/overlap")
+        warnings.append("Large chunk length variance — consider tuning chunk_size/overlap")
 
     if len(chunks) == 1 and max_c > 2000:
-        warnings.append("Toàn bộ doc trong 1 chunk — nên chunk cho file dài")
+        warnings.append("Entire document in one chunk — chunk long files")
 
     # Score: penalize warnings and extreme sizes
     score = 1.0

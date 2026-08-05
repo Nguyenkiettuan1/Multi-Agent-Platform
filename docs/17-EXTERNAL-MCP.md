@@ -18,7 +18,7 @@ Catalog template: `config/mcp_servers.yaml`.
 ### Step 1 — Copy example config
 
 ```powershell
-copy docs\cursor-mcp.json.example .cursor\mcp.json
+copy .cursor\mcp.json.example .cursor\mcp.json
 ```
 
 Adjust `filesystem` paths for your machine (e.g. `./multi-agent`).
@@ -127,7 +127,7 @@ workflows/workers/action_worker.py
 ## 3. Security
 
 - Store API keys in `.env` or local `mcp.json` (gitignored)
-- Do not commit tokens in `cursor-mcp.json.example` or `.cursor/mcp.json`
+- Do not commit tokens in `mcp.json.example`
 - Filesystem/OCR MCP can read local files — enable only trusted servers
 
 ---

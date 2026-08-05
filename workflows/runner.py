@@ -1,4 +1,4 @@
-"""Chạy workflow end-to-end."""
+"""Run workflow end-to-end."""
 
 from __future__ import annotations
 
@@ -43,6 +43,7 @@ def _build_initial_state(
     user_id: str,
     trace_id: str,
     chat_history: list[dict],
+    attachments: list[dict] | None = None,
 ) -> GraphState:
     return {
         "user_message": user_message,
@@ -50,6 +51,7 @@ def _build_initial_state(
         "user_id": user_id,
         "trace_id": trace_id,
         "chat_history": chat_history,
+        "attachments": attachments or [],
         "triage": None,
         "plan": None,
         "topology_mode": "planned",
@@ -109,6 +111,7 @@ async def run_agent_workflow(
     user_id: str = "anonymous",
     session_id: str | None = None,
     graph=None,
+    attachments: list[dict] | None = None,
 ) -> dict[str, Any]:
     reset_usage_tracker()
     trace_id = uuid.uuid4().hex
@@ -122,6 +125,7 @@ async def run_agent_workflow(
         user_id=user_id,
         trace_id=trace_id,
         chat_history=chat_history,
+        attachments=attachments,
     )
 
     compiled = graph or get_graph()
@@ -187,6 +191,7 @@ async def stream_agent_workflow(
     user_id: str = "anonymous",
     session_id: str | None = None,
     graph=None,
+    attachments: list[dict] | None = None,
 ) -> AsyncIterator[str]:
     """SSE stream — step events live, complete event with full ChatResponse."""
     reset_usage_tracker()
@@ -201,6 +206,7 @@ async def stream_agent_workflow(
         user_id=user_id,
         trace_id=trace_id,
         chat_history=chat_history,
+        attachments=attachments,
     )
 
     compiled = graph or get_graph()
@@ -218,8 +224,8 @@ async def stream_agent_workflow(
     yield _sse("step", running_step(
         phase="triage",
         agent="triage",
-        title="Phân loại intent",
-        detail="Đang phân tích yêu cầu…",
+        title="Classify intent",
+        detail="Analyzing request…",
     ).to_dict())
 
     try:
@@ -235,7 +241,7 @@ async def stream_agent_workflow(
                         yield _sse("step", running_step(
                             phase=phase,
                             title=title,
-                            detail="Đang xử lý…",
+                            detail="Processing…",
                         ).to_dict())
 
             snapshot = await compiled.aget_state(config)

@@ -8,7 +8,7 @@ import pytest
 
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5432/phanlaw",
+    "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5432/multiagent",
 )
 
 
@@ -57,8 +57,8 @@ def test_triage_followup_research_after_company_search():
     from workflows.state import IntentType
 
     history = [
-        {"role": "user", "content": "tim kiem toan bo thong tin cua phanlaw viet nam"},
-        {"role": "assistant", "content": "Phan Law Vietnam duoc thanh lap nam 2010..."},
+        {"role": "user", "content": "tim kiem toan bo thong tin cua cong ty ABC viet nam"},
+        {"role": "assistant", "content": "Cong ty ABC Vietnam duoc thanh lap nam 2010..."},
     ]
 
     async def _run():
@@ -84,7 +84,7 @@ def test_should_use_llm_when_chat_history_exists():
     from core.control.triage import analyze_triage_rules, should_use_llm_triage
 
     rule = analyze_triage_rules("CEO la ai?")
-    assert should_use_llm_triage("CEO la ai?", [{"role": "user", "content": "phanlaw"}], rule)
+    assert should_use_llm_triage("CEO la ai?", [{"role": "user", "content": "cong ty ABC"}], rule)
 
 
 def test_redact_email():
@@ -119,7 +119,7 @@ async def test_db_only_plan_single_worker():
 
     msg = "Co bao nhieu hop dong trong he thong?"
     triage = analyze_triage(msg)
-    plan = plan_from_triage(msg, triage)
+    plan = await plan_from_triage(msg, triage)
 
     assert triage.intent == IntentType.DB_ONLY
     assert triage.fast_path is True

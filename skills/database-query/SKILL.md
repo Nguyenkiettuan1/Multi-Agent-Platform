@@ -1,36 +1,36 @@
 # Database Query Skill
 
-## Quy tắc bắt buộc
+## Mandatory rules
 
-1. **CHỈ dùng SELECT** — không INSERT, UPDATE, DELETE, DROP, ALTER
-2. **Luôn có LIMIT** — mặc định 100 rows, tối đa 500
-3. **Không biết schema → gọi `describe_table` trước** khi query
-4. **Trả lời bằng tiếng Việt**, kèm SQL đã chạy trong code block
-5. **Không tìm thấy dữ liệu** → nói rõ và gợi ý query thay thế
+1. **SELECT only** — no INSERT, UPDATE, DELETE, DROP, ALTER
+2. **Always use LIMIT** — default 100 rows, maximum 500
+3. **Unknown schema → call `describe_table` first** before querying
+4. **Respond in the user's language**, include executed SQL in a code block
+5. **No data found** → state clearly and suggest alternative queries
 
-## Schema chính (PostgreSQL — schema `app`)
+## Main schema (PostgreSQL — schema `app`)
 
-### Bảng `app.clients`
+### Table `app.clients`
 
-| Column | Type | Mô tả |
-|--------|------|--------|
+| Column | Type | Description |
+|--------|------|-------------|
 | id | SERIAL | Primary key |
-| name | VARCHAR | Tên khách hàng |
-| tax_code | VARCHAR | Mã số thuế |
-| email | VARCHAR | Email liên hệ |
+| name | VARCHAR | Client name |
+| tax_code | VARCHAR | Tax ID |
+| email | VARCHAR | Contact email |
 
-### Bảng `app.contracts`
+### Table `app.contracts`
 
-| Column | Type | Mô tả |
-|--------|------|--------|
+| Column | Type | Description |
+|--------|------|-------------|
 | id | SERIAL | Primary key |
-| code | VARCHAR | Mã hợp đồng |
+| code | VARCHAR | Contract code |
 | client_id | INTEGER | FK → clients.id |
-| title | TEXT | Tiêu đề |
+| title | TEXT | Title |
 | status | VARCHAR | active / expired / draft |
-| value_vnd | BIGINT | Giá trị VND |
+| value_vnd | BIGINT | Value in VND |
 
-## Ví dụ query đúng
+## Correct query examples
 
 ```sql
 SELECT COUNT(*) AS total FROM app.contracts WHERE status = 'active' LIMIT 100;
@@ -44,5 +44,5 @@ LIMIT 10;
 
 ## Output format
 
-- Tóm tắt kết quả bằng tiếng Việt
-- Kèm SQL trong code block
+- Summarize results in the user's language
+- Include SQL in a code block

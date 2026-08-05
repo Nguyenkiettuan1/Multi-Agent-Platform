@@ -1,15 +1,15 @@
-# Hạ tầng: Local PostgreSQL → Cloud
+# Infrastructure: Local PostgreSQL → Cloud
 
-> **Nguyên tắc:** PostgreSQL từ ngày đầu — local qua Docker, sau đó migrate lên Azure Database for PostgreSQL mà **không đổi application code**.
+> **Principle:** PostgreSQL from day one — local via Docker, then migrate to Azure Database for PostgreSQL **without changing application code**.
 
-Tham chiếu:
+References:
 - [LangGraph PostgresSaver](https://langchain-ai.github.io/langgraph/reference/checkpoints/#postgressaver)
 - [Deploy LangGraph Production + Postgres](https://rapidclaw.dev/blog/deploy-langgraph-production-tutorial-2026)
 - [ActiveWizards — Checkpointer decision matrix](https://activewizards.com/blog/langgraph-state-management-checkpointing-recovery-and-the-persistence-layer-decision/)
 
 ---
 
-## 1. Hai lớp PostgreSQL (tách schema)
+## 1. Two PostgreSQL Layers (Separate Schemas)
 
 ```mermaid
 flowchart TB
@@ -32,13 +32,13 @@ flowchart TB
     GATEWAY[API Gateway] -->|audit write| PLATFORM
 ```
 
-| Schema | Mục đích | Ai truy cập | Ghi chú |
+| Schema | Purpose | Who accesses | Notes |
 |--------|----------|-------------|---------|
-| `app` | Dữ liệu nghiệp vụ PHANLAW | DB Worker qua sql-mcp (read-only) | User data, contracts |
-| `platform` | Runtime agent system | Workflow engine, Gateway | Checkpoints, audit, DAG |
+| `app` | Application business data | DB Worker via sql-mcp (read-only) | User data, contracts |
+| `platform` | Agent runtime system | Workflow engine, Gateway | Checkpoints, audit, DAG |
 
 **Local:** 1 PostgreSQL instance, 2 schemas.
-**Cloud:** Có thể tách thành 2 Azure PostgreSQL Flexible Server nếu cần isolation.
+**Cloud:** Can be split into 2 Azure PostgreSQL Flexible Servers if isolation is needed.
 
 ---
 
@@ -68,13 +68,13 @@ flowchart LR
 
 ### Quick start
 
-> Chi tiết từng bước + cách điền `.env`: [12-LOCAL-SETUP.md](12-LOCAL-SETUP.md)
+> Step-by-step details + how to fill in `.env`: [12-LOCAL-SETUP.md](12-LOCAL-SETUP.md)
 
 ```bash
 # 1. Start infrastructure (PostgreSQL + Redis + pgAdmin)
 docker compose up -d
 
-# 2. Copy env (giá trị mặc định khớp Docker — không cần sửa)
+# 2. Copy env (default values match Docker — no changes needed)
 copy .env.example .env
 
 # 3. Run migrations
@@ -85,7 +85,7 @@ python scripts/seed.py
 python scripts/seed_vectors.py
 
 # 5. Verify
-docker exec phanlaw-postgres psql -U phanlaw -d phanlaw -c "SELECT code, status FROM app.contracts;"
+docker exec multiagent-postgres psql -U multiagent -d multiagent -c "SELECT code, status FROM app.contracts;"
 ```
 
 ---
@@ -96,10 +96,10 @@ docker exec phanlaw-postgres psql -U phanlaw -d phanlaw -c "SELECT code, status 
 
 ```env
 # Business data (app schema) — DB agent queries here
-DATABASE_URL=postgresql+psycopg://phanlaw:phanlaw@localhost:5432/phanlaw?options=-csearch_path%3Dapp
+DATABASE_URL=postgresql+psycopg://multiagent:multiagent@localhost:5432/multiagent?options=-csearch_path%3Dapp
 
 # Platform runtime (checkpoints, audit) — LangGraph PostgresSaver
-PLATFORM_DATABASE_URL=postgresql://phanlaw:phanlaw@localhost:5432/phanlaw?options=-csearch_path%3Dplatform
+PLATFORM_DATABASE_URL=postgresql://multiagent:multiagent@localhost:5432/multiagent?options=-csearch_path%3Dplatform
 
 # Session cache
 REDIS_URL=redis://localhost:6379/0
@@ -108,23 +108,23 @@ REDIS_URL=redis://localhost:6379/0
 ### Cloud (Azure — same code, different URLs)
 
 ```env
-DATABASE_URL=postgresql+psycopg://user@server.postgres.database.azure.com:5432/phanlaw?sslmode=require&options=-csearch_path%3Dapp
-PLATFORM_DATABASE_URL=postgresql://user@server.postgres.database.azure.com:5432/phanlaw?sslmode=require&options=-csearch_path%3Dplatform
+DATABASE_URL=postgresql+psycopg://user@server.postgres.database.azure.com:5432/multiagent?sslmode=require&options=-csearch_path%3Dapp
+PLATFORM_DATABASE_URL=postgresql://user@server.postgres.database.azure.com:5432/multiagent?sslmode=require&options=-csearch_path%3Dplatform
 REDIS_URL=rediss://:password@cache.redis.cache.windows.net:6380/0
 ```
 
-**Migration rule:** Chỉ đổi env vars + connection string. Không đổi SQL dialect, ORM, hay MCP server logic.
+**Migration rule:** Only change env vars + connection string. Do not change SQL dialect, ORM, or MCP server logic.
 
 ---
 
 ## 4. LangGraph Checkpointing (PostgreSQL)
 
-Tham chiếu: [LangGraph checkpoint-postgres](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-postgres)
+Reference: [LangGraph checkpoint-postgres](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-postgres)
 
-| Environment | Checkpointer | Lý do |
+| Environment | Checkpointer | Reason |
 |-------------|--------------|-------|
 | Unit test | `MemorySaver` | Zero setup |
-| Local dev | `PostgresSaver` | **Giống production** — không dùng SQLite |
+| Local dev | `PostgresSaver` | **Same as production** — do not use SQLite |
 | Production | `AsyncPostgresSaver` + pool | Horizontal scale, crash recovery |
 
 ```python
@@ -140,17 +140,17 @@ async def create_checkpointer() -> AsyncPostgresSaver:
         kwargs={"autocommit": True, "prepare_threshold": 0},
     )
     checkpointer = AsyncPostgresSaver(pool)
-    await checkpointer.setup()  # tạo bảng checkpoints lần đầu
+    await checkpointer.setup()  # create checkpoints table on first run
     return checkpointer
 ```
 
-**Quy tắc:** Local dev dùng PostgresSaver ngay từ đầu — tránh surprise khi lên cloud.
+**Rule:** Use PostgresSaver in local dev from the start — avoid surprises when moving to cloud.
 
 ---
 
 ## 5. sql-mcp → PostgreSQL
 
-DB Worker truy cập schema `app` qua role read-only:
+The DB Worker accesses the `app` schema via a read-only role:
 
 ```sql
 -- infra/database/migrations/002_roles.sql
@@ -160,7 +160,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA app TO agent_reader;
 ALTER DEFAULT PRIVILEGES IN SCHEMA app GRANT SELECT ON TABLES TO agent_reader;
 ```
 
-MCP server connect với `agent_reader` — không bao giờ dùng superuser.
+The MCP server connects with `agent_reader` — never use a superuser.
 
 ---
 
@@ -191,10 +191,10 @@ flowchart LR
     Phase2 -->|promote| Phase3
 ```
 
-| Bước | Local | Cloud (Azure) | Thay đổi code |
-|------|-------|---------------|---------------|
-| Database | Docker Postgres 16 | Azure Database for PostgreSQL Flexible Server | Chỉ `DATABASE_URL` |
-| Cache | Docker Redis | Azure Cache for Redis | Chỉ `REDIS_URL` |
+| Step | Local | Cloud (Azure) | Code changes |
+|------|-------|---------------|--------------|
+| Database | Docker Postgres 16 | Azure Database for PostgreSQL Flexible Server | Only `DATABASE_URL` |
+| Cache | Docker Redis | Azure Cache for Redis | Only `REDIS_URL` |
 | Checkpoints | PostgresSaver local | AsyncPostgresSaver + PgBouncer | Pool size config |
 | Agents | `azd ai agent run` local | Foundry Container Apps | `azure.yaml` env |
 | MCP servers | stdio local | Container App / SSE | Transport mode |
@@ -205,17 +205,17 @@ flowchart LR
 
 ```bash
 # Export local
-pg_dump -h localhost -U phanlaw -d phanlaw -n app --data-only > app_data.sql
+pg_dump -h localhost -U multiagent -d multiagent -n app --data-only > app_data.sql
 
 # Import staging
-psql "postgresql://user@staging.postgres.database.azure.com/phanlaw" -f app_data.sql
+psql "postgresql://user@staging.postgres.database.azure.com/multiagent" -f app_data.sql
 ```
 
 ---
 
 ## 7. Docker Compose (local)
 
-Xem `docker-compose.yml` ở root project.
+See `docker-compose.yml` at the project root.
 
 | Service | Image | Port | Volume |
 |---------|-------|------|--------|
@@ -237,7 +237,7 @@ infra/
 │   │   └── 004_roles.sql
 │   └── README.md
 └── docker/
-    └── init-db.sh          # chạy migrations khi container start
+    └── init-db.sh          # run migrations when container starts
 ```
 
 ---
@@ -254,13 +254,13 @@ infra/
 
 ---
 
-## 10. Checklist trước khi lên cloud
+## 10. Pre-cloud Checklist
 
-- [ ] Local chạy 100% trên PostgreSQL (không SQLite)
-- [ ] PostgresSaver checkpointing hoạt động
-- [ ] sql-mcp dùng `agent_reader` role
-- [ ] Migrations versioned trong `infra/database/migrations/`
-- [ ] Eval suite pass trên local Postgres data
+- [ ] Local runs 100% on PostgreSQL (no SQLite)
+- [ ] PostgresSaver checkpointing works
+- [ ] sql-mcp uses `agent_reader` role
+- [ ] Migrations versioned in `infra/database/migrations/`
+- [ ] Eval suite passes on local Postgres data
 - [ ] `pg_dump` / restore tested
 - [ ] Connection pooling configured (`min_size`, `max_size`)
-- [ ] Env vars documented trong `.env.example`
+- [ ] Env vars documented in `.env.example`

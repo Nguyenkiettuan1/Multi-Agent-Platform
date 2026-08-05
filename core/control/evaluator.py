@@ -1,8 +1,8 @@
-"""Response evaluator — đánh giá chất lượng câu trả lời.
+"""Response evaluator — assess answer quality.
 
 Ref: OpenAI evals, Langfuse scoring, Anthropic eval patterns.
 
-Phase 1: rule-based checks (không cần LLM).
+Phase 1: rule-based checks (no LLM required).
 Phase 2+: LLM-as-judge, human feedback loop → self-improvement.
 """
 
@@ -84,7 +84,7 @@ def evaluate_response(
     checks.append({
         "name": "citations_present",
         "passed": cite_ok,
-        "detail": "ok" if cite_ok else "missing [Dx]/[Wx] or Nguồn tham khảo",
+        "detail": "ok" if cite_ok else "missing [Dx]/[Wx] or References section",
     })
     score_parts.append(1.0 if cite_ok else 0.3)
 
@@ -138,7 +138,7 @@ def _check_citations_present(
     has_sources = any(r.citations for r in worker_results)
     if not used_search or not has_sources:
         return True
-    if "## Nguồn tham khảo" in response:
+    if "## References" in response or "## Nguồn tham khảo" in response:
         return True
     return "[D" in response or "[W" in response
 

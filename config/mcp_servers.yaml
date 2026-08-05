@@ -1,0 +1,112 @@
+# MCP catalog — internal + external
+#
+# Cursor IDE: copy entries you need into .cursor/mcp.json (see docs/17-EXTERNAL-MCP.md)
+# App runtime (chat UI): ToolHub reads this file — set enabled: true for servers you need
+#
+# kind: internal (Python in core/mcp/) | mcp (spawn stdio process)
+# runtime: cursor | app | both
+
+servers:
+  builtin-translate:
+    description: Translate text via LLM (vi, en, ja, …)
+    kind: internal
+    runtime: app
+    enabled: true
+
+  builtin-ocr:
+    description: Image OCR — local Tesseract or enable paddleocr
+    kind: internal
+    runtime: app
+    enabled: true
+
+  builtin-image:
+    description: Merge multiple images (Pillow) — horizontal or vertical
+    kind: internal
+    runtime: app
+    enabled: true
+
+  sql-server:
+    description: PostgreSQL read-only (project)
+    kind: internal
+    runtime: both
+    enabled: true
+    transport: stdio
+    command: python
+    args: ["mcp-servers/sql-server/server.py"]
+    env:
+      DATABASE_URL: "${DATABASE_URL}"
+
+  search-server:
+    description: Hybrid RAG + Tavily web search
+    kind: internal
+    runtime: both
+    enabled: true
+    transport: stdio
+    command: python
+    args: ["mcp-servers/search-server/server.py"]
+
+  filesystem:
+    description: Read/write files in workspace (official MCP)
+    kind: mcp
+    runtime: cursor
+    enabled: false
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "${WORKSPACE_ROOT}"]
+
+  fetch:
+    description: Fetch URL → markdown (official MCP)
+    kind: mcp
+    runtime: both
+    enabled: false
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-fetch"]
+
+  brave-search:
+    description: Web search via Brave API (requires BRAVE_API_KEY)
+    kind: mcp
+    runtime: cursor
+    enabled: false
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-brave-search"]
+    env:
+      BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+  paddleocr:
+    description: OCR / PDF scan → text (PaddleOCR MCP) — high accuracy
+    kind: mcp
+    runtime: both
+    enabled: true
+    transport: stdio
+    command: python
+    args: ["-m", "paddleocr_mcp", "--ppocr_source", "local"]
+    tools:
+      - name: ocr
+        description: >
+          Deep OCR — scans, invoices, tables, small text, blurry images.
+          Use when the user needs high accuracy or builtin-ocr is insufficient.
+        input_schema:
+          type: object
+          properties:
+            file_path:
+              type: string
+              description: Image path on the server
+            image_path:
+              type: string
+              description: Alias for file_path (some MCP servers use this name)
+            image_base64:
+              type: string
+              description: Base64 image (when uploaded via chat)
+
+  github:
+    description: GitHub issues/PRs (requires GITHUB_PERSONAL_ACCESS_TOKEN)
+    kind: mcp
+    runtime: cursor
+    enabled: false
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}"
