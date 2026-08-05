@@ -29,6 +29,7 @@ async def triage_node(state: GraphState) -> dict:
     triage = await analyze_triage_async(
         state["user_message"],
         chat_history=state.get("chat_history"),
+        attachments=state.get("attachments"),
     )
 
     if triage.blocked:
@@ -52,6 +53,7 @@ async def triage_node(state: GraphState) -> dict:
         "redacted_types": [],
         "citations": [],
         "pipeline_steps": triage_steps(triage),
+        "attachments": state.get("attachments") or [],
     }
 
 
@@ -65,11 +67,17 @@ def route_after_triage(state: GraphState) -> str:
 async def plan_node(state: GraphState) -> dict:
     """Bước 2: Tạo TaskPlan — LLM chỉ khi multi/complex."""
     triage = state.get("triage")
-    plan = await plan_tasks_async(state["user_message"], triage=triage)
+    plan = await plan_tasks_async(
+        state["user_message"],
+        triage=triage,
+        attachments=state.get("attachments"),
+        chat_history=state.get("chat_history"),
+    )
     return {
         "plan": plan,
         "topology_mode": plan.topology_mode.value,
         "pipeline_steps": plan_steps(plan),
+        "attachments": state.get("attachments") or [],
     }
 
 
@@ -100,7 +108,11 @@ async def execute_workers_node(state: GraphState) -> dict:
     done: list[PipelineStep] = []
 
     for task in plan.subtasks:
-        result = await run_worker(task, chat_history=state.get("chat_history"))
+        result = await run_worker(
+            task,
+            chat_history=state.get("chat_history"),
+            attachments=state.get("attachments"),
+        )
         results_list.append(result)
         done.extend(worker_done_steps([result]))
 

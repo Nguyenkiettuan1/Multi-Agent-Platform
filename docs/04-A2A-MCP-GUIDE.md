@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # A2A & MCP — Hướng dẫn triển khai
 
 ## 1. MCP Server Development
@@ -51,7 +54,7 @@ File `.cursor/mcp.json`:
       "command": "python",
       "args": ["mcp-servers/sql-server/server.py"],
       "env": {
-        "DATABASE_URL": "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5432/phanlaw?options=-csearch_path%3Dapp"
+        "DATABASE_URL": "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5432/multiagent?options=-csearch_path%3Dapp"
       }
     }
   }

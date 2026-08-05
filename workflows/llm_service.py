@@ -52,6 +52,7 @@ async def complete_worker_task(
         AgentId.LEGAL_WORKER: LEGAL_SYSTEM,
         AgentId.RESEARCH_WORKER: RESEARCH_SYSTEM,
         AgentId.DB_WORKER: GENERAL_SYSTEM,
+        AgentId.ACTION_WORKER: GENERAL_SYSTEM,
     }
     system = system_map.get(agent, GENERAL_SYSTEM) + _skill_context(skill_name)
 

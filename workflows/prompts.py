@@ -59,7 +59,7 @@ Intent (chọn MỘT):
 - db_only: số liệu/bản ghi trong database nội bộ (hợp đồng, khách hàng, thống kê hệ thống)
 - research: cần tìm kiếm web/tài liệu, thông tin công ty/tổ chức bên ngoài, hoặc câu hỏi tiếp theo về chủ đề vừa tra cứu
 - legal: pháp luật, điều khoản, tranh chấp, soạn hợp đồng
-- action: gửi email, thông báo, gọi API, thực thi hành động
+- action: gửi email, thông báo, gọi API, OCR ảnh, dịch văn bản, ghép ảnh, thực thi tool
 - multi: cần ≥2 loại agent (vd: DB + pháp lý)
 - general: Q&A chung, giải thích khái niệm, không cần search hay DB
 

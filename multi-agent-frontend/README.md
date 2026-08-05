@@ -1,70 +1,88 @@
-# Agent Workspace — React Frontend
+# Agent Workspace — React frontend
 
-Ứng dụng React cho nền tảng **Enterprise Multi-Agent AI**, triển khai theo [FRONTEND-DESIGN-BRIEF.md](./FRONTEND-DESIGN-BRIEF.md) và các mockup HTML.
+React UI for the **Multi-Agent Platform** chat and admin surfaces.
 
 ## Tech stack
 
-| Công nghệ | Mục đích |
-|-----------|----------|
-| **React 19** + **TypeScript** | UI components |
-| **Vite 8** | Build & dev server |
-| **Tailwind CSS v4** | Design tokens + styling |
-| **React Router v7** | Routing (`/chat`, `/admin/*`) |
+| Technology | Purpose |
+|------------|---------|
+| React 19 + TypeScript | UI components |
+| Vite 8 | Dev server & build |
+| Tailwind CSS v4 | Design tokens & styling |
+| React Router v7 | Routes (`/chat`, `/admin/*`) |
 
-## Chạy dự án
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Mở http://localhost:5173 — API backend được proxy tới `http://localhost:8000` (xem `vite.config.ts`).
+Open http://localhost:5173 — API requests proxy to `http://localhost:8000` (see `vite.config.ts`).
 
-## Cấu trúc thư mục
+**Backend must be running:**
+
+```bash
+# from repo root
+python -m gateway.main
+```
+
+## Features
+
+| Feature | Status |
+|---------|--------|
+| Chat streaming (`POST /api/v1/chat/stream`) | Implemented |
+| Session list & history | Implemented |
+| Image upload for OCR | Implemented |
+| Admin dashboard (`/admin/*`) | Implemented |
+| API key in localStorage | Implemented (`multiagent_api_key`) |
+| SSO / production auth | Planned |
+
+## Project structure
 
 ```
 src/
+├── api/                 # client.ts, types — backend API
 ├── components/
-│   ├── layout/          # TopNavBar, AdminSidebar, UserSidebar, layouts
-│   └── ui/              # MaterialIcon, StarRating
+│   ├── layout/          # TopNavBar, sidebars, layouts
+│   └── ui/              # MaterialIcon, StarRating, …
 ├── pages/
-│   ├── admin/           # Dashboard, Knowledge, Feedback, Audit, Models, Logs, Support
-│   ├── chat/            # Giao diện chat chính
-│   └── settings/        # Cài đặt người dùng
-├── routes/AppRoutes.tsx # Định nghĩa route
-└── index.css            # Design tokens (@theme)
+│   ├── admin/           # Dashboard, knowledge, feedback, audit, models, logs
+│   ├── chat/            # Main chat UI
+│   └── settings/        # User settings
+├── lib/storage.ts       # localStorage keys
+└── routes/AppRoutes.tsx
 ```
 
 ## Routes
 
-| Path | Trang |
-|------|-------|
-| `/chat` | Chat mới |
-| `/chat/:sessionId` | Phiên chat |
-| `/settings` | Cài đặt |
+| Path | Page |
+|------|------|
+| `/chat` | New chat |
+| `/chat/:sessionId` | Existing session |
+| `/settings` | Settings |
 | `/admin` | Dashboard |
-| `/admin/knowledge` | Quản trị tri thức |
-| `/admin/feedback` | Phản hồi |
+| `/admin/knowledge` | Knowledge management |
+| `/admin/feedback` | Feedback review |
 | `/admin/audit` | Audit logs |
-| `/admin/models` | Model & Agent catalog |
-| `/admin/logs` | System logs (kỹ thuật) |
-| `/admin/support` | Trung tâm hỗ trợ |
+| `/admin/models` | Model & agent catalog |
+| `/admin/logs` | System logs |
 
 ## Design system
 
-- **Màu sắc:** tokens trong `src/index.css` (`--color-secondary`, `--color-citation-knowledge`, …)
-- **Typography:** Inter (UI), JetBrains Mono (code/logs)
-- **Icons:** Material Symbols Outlined qua component `<MaterialIcon />`
-- **Layout:** sidebar cố định 280px (`w-sidebar-width`), top bar 64px
+- Colors: CSS variables in `src/index.css`
+- Fonts: Inter (UI), JetBrains Mono (code/logs)
+- Icons: Material Symbols via `<MaterialIcon />`
+- Layout: 280px sidebar, 64px top bar
 
-## Bước tiếp theo (chưa implement)
+## Environment
 
-- [ ] Kết nối API (`POST /api/v1/chat`, admin endpoints)
-- [ ] Sources drawer khi click citation `[D1]`
-- [ ] Upload wizard knowledge
-- [ ] Chi tiết feedback/audit theo `traceId`
-- [ ] Auth SSO / `X-API-Key`
+No `.env` required for local dev — Vite proxies `/api` to port `8000`.
 
-## Tài liệu liên quan
+Optional: set API key in Settings UI (stored as `multiagent_api_key`).
 
-- [FRONTEND-DESIGN-BRIEF.md](./FRONTEND-DESIGN-BRIEF.md) — spec đầy đủ UI/UX & API mapping
+## Related docs
+
+- [FRONTEND-DESIGN-BRIEF.md](./FRONTEND-DESIGN-BRIEF.md) — full UI/UX spec
+- [../docs/12-LOCAL-SETUP.md](../docs/12-LOCAL-SETUP.md) — backend setup
+- [../docs/17-EXTERNAL-MCP.md](../docs/17-EXTERNAL-MCP.md) — MCP / OCR tools

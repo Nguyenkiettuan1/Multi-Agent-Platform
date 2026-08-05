@@ -1,6 +1,9 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # Reference Repositories — Survey Frameworks & Patterns
 
-> Khảo sát các repo và pattern nổi tiếng, áp dụng cho PHANLAW Multi-Agent Platform.
+> Khảo sát các repo và pattern nổi tiếng, áp dụng cho Multi-Agent Platform.
 
 ---
 
@@ -41,7 +44,7 @@ pre_model_hook → summarization middleware
 Parallel tool calls → parallel A2A dispatch
 ```
 
-**PHANLAW dùng cho:** Workflow engine, state management, supervisor orchestration.
+**Project dùng cho:** Workflow engine, state management, supervisor orchestration.
 
 ---
 
@@ -65,7 +68,7 @@ LeadResearcher → synthesize → CitationAgent → final output
 - Citation agent as separate pass
 - 90.2% improvement over single-agent
 
-**PHANLAW áp dụng:** Planner/Worker/Synthesizer/Citation role separation.
+**Project áp dụng:** Planner/Worker/Synthesizer/Citation role separation.
 
 ---
 
@@ -87,7 +90,7 @@ Stage 3: Chairman Synthesis — designated model combines best elements
 - Graceful degradation (continue if 1 model fails)
 - 4-layer architecture: Tier Selection → Triage → Orchestration → Gateway
 
-**PHANLAW áp dụng:** Mode 4 (Council) for critical SLO tier.
+**Project áp dụng:** Mode 4 (Council) for critical SLO tier.
 
 ---
 
@@ -107,7 +110,7 @@ Request → Router (BERT/MF classifier) → strong model OR weak model
 - <10ms routing decision
 - OpenAI-compatible proxy server
 
-**PHANLAW áp dụng:** Control Plane model router, T0/T1 dynamic routing.
+**Project áp dụng:** Control Plane model router, T0/T1 dynamic routing.
 
 ---
 
@@ -129,7 +132,7 @@ billing = Agent(model="gpt-4o", tools=[...])
 - **Handoffs:** Specialist owns conversation (customer support)
 - **Agents as tools:** Manager stays in control, calls specialists (`agent.as_tool()`)
 
-**PHANLAW áp dụng:** Triage agent (T0), handoff vs agents-as-tools decision per use case.
+**Project áp dụng:** Triage agent (T0), handoff vs agents-as-tools decision per use case.
 
 ---
 
@@ -148,7 +151,7 @@ Flow = Event-driven workflows with state, branching
 - Task = description + expected_output + agent assignment
 - Process = sequential | hierarchical (manager agent)
 
-**PHANLAW áp dụng:** Role definition pattern, hierarchical process for planning.
+**Project áp dụng:** Role definition pattern, hierarchical process for planning.
 
 ---
 
@@ -164,7 +167,7 @@ Flow = Event-driven workflows with state, branching
 
 **Native:** MCP + A2A + Azure AI Foundry integration.
 
-**PHANLAW áp dụng:** Nếu team .NET/Azure-heavy, consider MAF over raw LangGraph.
+**Project áp dụng:** Nếu team .NET/Azure-heavy, consider MAF over raw LangGraph.
 
 ---
 
@@ -179,7 +182,7 @@ Flow = Event-driven workflows with state, branching
 
 **Key philosophy:** Explicit graphs, auditable paths. "Point at the graph and tell an auditor exactly how a decision got made."
 
-**PHANLAW áp dụng:** Pipeline mode (ETL, reporting), A2A interop.
+**Project áp dụng:** Pipeline mode (ETL, reporting), A2A interop.
 
 ---
 
@@ -193,13 +196,13 @@ Before agent node → CASTER analyzes state → selects model tier
 If low-cost model fails → rollback + upgrade tier
 ```
 
-**PHANLAW áp dụng:** Advanced routing (Phase 4), per-step tier optimization.
+**Project áp dụng:** Advanced routing (Phase 4), per-step tier optimization.
 
 ---
 
 ## 3. Pattern Catalog — Khi nào dùng gì
 
-| Pattern | Source | Use Case | PHANLAW Mode |
+| Pattern | Source | Use Case | Execution mode |
 |---------|--------|----------|--------------|
 | Supervisor | LangGraph | Default orchestration | Mode 1–3 |
 | Context Isolation | Anthropic | Parallel workers | All modes |
@@ -214,7 +217,7 @@ If low-cost model fails → rollback + upgrade tier
 
 ---
 
-## 4. Recommended Stack for PHANLAW
+## 4. Recommended Stack
 
 ```
 ┌─────────────────────────────────────────────────┐

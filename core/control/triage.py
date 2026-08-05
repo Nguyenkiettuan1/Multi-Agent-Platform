@@ -202,8 +202,24 @@ def should_use_llm_triage(
 async def analyze_triage_async(
     user_message: str,
     chat_history: list[dict] | None = None,
+    *,
+    attachments: list[dict] | None = None,
 ) -> TriageResult:
     """Triage chính — rule fast path → LLM (có context) → rule fallback."""
+    attachment_result = _triage_from_attachments(attachments)
+    if attachment_result:
+        security = scan_input(user_message)
+        attachment_result.security_flags = security.flags
+        if security.blocked:
+            return TriageResult(
+                intent=IntentType.BLOCKED,
+                complexity=0.0,
+                blocked=True,
+                block_reason=security.block_reason,
+                security_flags=security.flags,
+            )
+        return attachment_result
+
     security = scan_input(user_message)
     if security.blocked:
         return TriageResult(
@@ -232,9 +248,17 @@ async def analyze_triage_async(
     return rule_result
 
 
-def analyze_triage(user_message: str, chat_history: list[dict] | None = None) -> TriageResult:
+def analyze_triage(
+    user_message: str,
+    chat_history: list[dict] | None = None,
+    *,
+    attachments: list[dict] | None = None,
+) -> TriageResult:
     """Sync API — rule-only (tests, planner không có history)."""
     _ = chat_history
+    attachment_result = _triage_from_attachments(attachments)
+    if attachment_result:
+        return attachment_result
     return analyze_triage_rules(user_message)
 
 
@@ -257,13 +281,14 @@ def _is_capability_question(msg: str) -> bool:
 
 
 def detect_capabilities(msg: str) -> dict[str, bool]:
-    """Public API — dùng cho planner multi-task."""
+    """Public API — dùng cho planner multi-task (sync heuristic)."""
     lower = _normalize(msg)
     return {
         "db": _needs_db(lower),
         "legal": _needs_legal(lower),
         "research": _needs_research(lower),
         "action": _needs_action(lower),
+        "tools": False,
     }
 
 
@@ -302,3 +327,12 @@ def _needs_action(msg: str) -> bool:
         "call api", "thuc hien", "execute action",
     ]
     return any(k in msg for k in keywords)
+
+
+def _triage_from_attachments(attachments: list[dict] | None) -> TriageResult | None:
+    """Ảnh đính kèm chat → action-worker OCR."""
+    from core.planning.media_tasks import has_image_attachments
+
+    if has_image_attachments(attachments):
+        return build_triage_result(IntentType.ACTION, complexity=0.35)
+    return None

@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # Azure Blob Indexer — Tự động index tài liệu lên Azure Search
 
 > P1 còn lại: **không chạy trong code local** — setup trên Azure Portal. Sau khi xong, agent query qua `hybrid_search()` → `azure_search()` như bình thường.

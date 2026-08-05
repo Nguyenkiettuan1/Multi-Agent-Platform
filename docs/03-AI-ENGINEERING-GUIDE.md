@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # AI Engineering Guide — Kiến thức nền tảng
 
 Tài liệu này tổng hợp kiến thức cần thiết cho team xây dựng hệ thống Multi-Agent Enterprise.
@@ -220,7 +223,7 @@ User query → Embed → Retrieve top-k → Augment prompt → LLM → Answer
 
 ```markdown
 # Role
-Bạn là DB Agent chuyên truy vấn database cho hệ thống PHANLAW.
+Bạn là DB Agent chuyên truy vấn database cho hệ thống multi-agent.
 
 # Capabilities
 - execute_query: Chạy SELECT queries (read-only)

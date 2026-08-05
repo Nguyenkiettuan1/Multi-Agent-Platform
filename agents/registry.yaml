@@ -1,8 +1,8 @@
-# Agent Fleet Registry — Lớp 2: mỗi agent = model riêng
-# Ref: OpenAI Swarm/Agents SDK, Anthropic managed agents, CrewAI
+# Agent Fleet Registry
+# Ref: OpenAI Agents SDK, Anthropic agents, CrewAI
 #
-# Pattern: agent.model gắn trực tiếp vào agent (industry standard)
-# Giá trị: profile alias (balanced) hoặc model ref (or-claude-sonnet)
+# Pattern: agent.model maps to a model profile or deployment ref
+# Values: profile alias (balanced) or model ref (or-claude-sonnet)
 
 agents:
   - id: general-agent
@@ -54,10 +54,15 @@ agents:
   - id: action-worker
     name: Action Worker
     description: >
-      Thực thi hành động — gửi email, notification, gọi API. Cần human approval.
+      Thực thi tool MCP — dịch, OCR, ghép ảnh, fetch URL, gửi email/API.
     skills: []
     tools:
-      - api-mcp
+      - builtin-translate
+      - builtin-ocr
+      - builtin-image
+      - search-server
+      - fetch
+      - paddleocr
     model: fast
 
   - id: code-worker

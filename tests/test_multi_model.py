@@ -8,7 +8,7 @@ import pytest
 
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5432/phanlaw",
+    "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5432/multiagent",
 )
 
 

@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # Kiến trúc Multi-Agent Enterprise v2
 
 > **Tài liệu này thay thế thiết kế v1.** Kiến trúc v1 chỉ có Supervisor + Workers — thiếu phân cấp model, context engineering, review/synthesis loop, và control plane. v2 dựa trên các pattern production từ Anthropic Research, LangGraph, RouteLLM, llm-council (Karpathy), Microsoft Agent Framework, Google ADK.
@@ -350,7 +353,7 @@ Tham chiếu: [llm-council (Karpathy)](https://github.com/karpathy/llm-council)
 | **Handoff** | Triage → specialist owns | Customer support | Low | OpenAI Agents SDK |
 | **Agents-as-Tools** | Manager calls workers | Manager synthesizes | Medium | OpenAI Agents SDK |
 
-**PHANLAW recommendation:**
+**Recommended approach:**
 - Default: **Supervisor** (Mode 1–3)
 - Legal/contract: **Council** (Mode 4)
 - ETL/reporting: **Pipeline**
@@ -584,8 +587,8 @@ Mỗi trace phải capture:
 ### Local → Cloud (zero code change)
 
 ```
-Local:  DATABASE_URL=postgresql://...@localhost:5432/phanlaw
-Cloud:  DATABASE_URL=postgresql://...@server.postgres.database.azure.com/phanlaw?sslmode=require
+Local:  DATABASE_URL=postgresql://...@localhost:5432/multiagent
+Cloud:  DATABASE_URL=postgresql://...@server.postgres.database.azure.com/multiagent?sslmode=require
 ```
 
 Chỉ đổi connection string trong `.env` / Key Vault.

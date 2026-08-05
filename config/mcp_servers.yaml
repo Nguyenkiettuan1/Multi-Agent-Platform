@@ -1,0 +1,222 @@
+# Catalog MCP — nội bộ + bên ngoài
+
+#
+
+# Cursor IDE: copy mục cần dùng vào .cursor/mcp.json (xem docs/17-EXTERNAL-MCP.md)
+
+# App runtime (chat UI): ToolHub đọc file này — bật enabled: true cho server cần dùng
+
+#
+
+# kind: internal (Python trong core/mcp/) | mcp (spawn stdio process)
+
+# runtime: cursor | app | both
+
+
+
+servers:
+
+  builtin-translate:
+
+    description: Dịch văn bản qua LLM (vi, en, ja, …)
+
+    kind: internal
+
+    runtime: app
+
+    enabled: true
+
+
+
+  builtin-ocr:
+
+    description: OCR ảnh — Tesseract local hoặc gợi ý bật paddleocr
+
+    kind: internal
+
+    runtime: app
+
+    enabled: true
+
+
+
+  builtin-image:
+
+    description: Ghép nhiều ảnh (Pillow) — ngang/dọc
+
+    kind: internal
+
+    runtime: app
+
+    enabled: true
+
+
+
+  sql-server:
+
+    description: PostgreSQL read-only (project)
+
+    kind: internal
+
+    runtime: both
+
+    enabled: true
+
+    transport: stdio
+
+    command: python
+
+    args: ["mcp-servers/sql-server/server.py"]
+
+    env:
+
+      DATABASE_URL: "${DATABASE_URL}"
+
+
+
+  search-server:
+
+    description: Hybrid RAG + Tavily web search
+
+    kind: internal
+
+    runtime: both
+
+    enabled: true
+
+    transport: stdio
+
+    command: python
+
+    args: ["mcp-servers/search-server/server.py"]
+
+
+
+  filesystem:
+
+    description: Đọc/ghi file trong workspace (official MCP)
+
+    kind: mcp
+
+    runtime: cursor
+
+    enabled: false
+
+    transport: stdio
+
+    command: npx
+
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "${WORKSPACE_ROOT}"]
+
+
+
+  fetch:
+
+    description: Fetch URL → markdown (official MCP)
+
+    kind: mcp
+
+    runtime: both
+
+    enabled: false
+
+    transport: stdio
+
+    command: npx
+
+    args: ["-y", "@modelcontextprotocol/server-fetch"]
+
+
+
+  brave-search:
+
+    description: Web search qua Brave API (cần BRAVE_API_KEY)
+
+    kind: mcp
+
+    runtime: cursor
+
+    enabled: false
+
+    transport: stdio
+
+    command: npx
+
+    args: ["-y", "@modelcontextprotocol/server-brave-search"]
+
+    env:
+
+      BRAVE_API_KEY: "${BRAVE_API_KEY}"
+
+
+
+  paddleocr:
+
+    description: OCR / PDF scan → text (PaddleOCR MCP) — độ chính xác cao
+
+    kind: mcp
+
+    runtime: both
+
+    enabled: true
+
+    transport: stdio
+
+    command: python
+
+    args: ["-m", "paddleocr_mcp", "--ppocr_source", "local"]
+
+    tools:
+
+      - name: ocr
+
+        description: >
+          OCR chuyên sâu — scan, hóa đơn, bảng biểu, chữ nhỏ, ảnh mờ.
+          Dùng khi user cần chính xác hoặc builtin-ocr không đủ.
+
+        input_schema:
+
+          type: object
+
+          properties:
+
+            file_path:
+
+              type: string
+
+              description: Đường dẫn ảnh trên server
+
+            image_path:
+
+              type: string
+
+              description: Alias của file_path (một số MCP dùng tên này)
+
+            image_base64:
+
+              type: string
+
+              description: Ảnh base64 (khi chat upload ảnh)
+
+
+
+  github:
+
+    description: GitHub issues/PRs (cần GITHUB_PERSONAL_ACCESS_TOKEN)
+
+    kind: mcp
+
+    runtime: cursor
+
+    enabled: false
+
+    transport: stdio
+
+    command: npx
+
+    args: ["-y", "@modelcontextprotocol/server-github"]
+
+    env:
+
+      GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+

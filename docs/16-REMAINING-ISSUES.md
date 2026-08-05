@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # Vấn đề còn lại & Backlog kỹ thuật
 
 > Cập nhật: v0.3.0 — sau đợt review code + P2 (RRF, Langfuse, feedback promotion).

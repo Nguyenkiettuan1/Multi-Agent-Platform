@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # Feedback Loop — Thu thập Q&A để đánh giá & train
 
 > P0 closed-loop: mọi chat được lưu, user có thể rate, export dataset.

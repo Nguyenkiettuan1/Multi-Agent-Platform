@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # Model Tiering & Routing
 
 > Chi tiết cách phân cấp model, route request, và tối ưu cost/quality.
@@ -190,7 +193,7 @@ response = litellm.completion(
 | T2 | Selective | SFT | Planning, synthesis examples |
 | T3 | No | Use base models | N/A |
 
-**Strategy:** Fine-tune T1 workers cho domain PHANLAW (legal, contracts). Giữ T0/T2 dùng base models.
+**Strategy:** Fine-tune T1 workers cho domain tùy chỉnh (legal, contracts). Giữ T0/T2 dùng base models.
 
 ---
 

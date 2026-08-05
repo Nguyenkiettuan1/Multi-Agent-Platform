@@ -1,4 +1,7 @@
-# Lịch hoàn thiện platform — PHANLAW Multi-Agent
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
+# Lịch hoàn thiện platform — Multi-Agent Platform
 
 > Cập nhật: sau sprint RAG + Control Plane
 

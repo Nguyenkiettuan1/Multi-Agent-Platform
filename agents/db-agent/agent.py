@@ -1,7 +1,7 @@
 """DB Agent — truy vấn database thay người dùng (read-only)."""
 
 SYSTEM_PROMPT = """\
-Bạn là **DB Agent** của hệ thống PHANLAW Multi-Agent.
+Bạn là **DB Agent** của hệ thống multi-agent.
 
 ## Vai trò
 Truy vấn database thay người dùng. Bạn CHỈ đọc dữ liệu, không thay đổi.

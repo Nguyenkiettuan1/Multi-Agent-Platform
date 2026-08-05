@@ -1,7 +1,7 @@
 # Azure Developer CLI — Multi-Agent Platform
 # Docs: https://learn.microsoft.com/azure/developer/azure-developer-cli/
 
-name: phanlaw-multi-agent
+name: multi-agent-platform
 metadata:
   template: azd-init@1.0.0
 

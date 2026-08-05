@@ -21,7 +21,7 @@ from core.search.azure_search import azure_search_enabled
 def build_admin_overview() -> dict[str, Any]:
     settings = get_settings()
     overview: dict[str, Any] = {
-        "service": "phanlaw-multi-agent",
+        "service": "multi-agent-platform",
         "version": SERVICE_VERSION,
         "capabilities": {
             "llm": bool(

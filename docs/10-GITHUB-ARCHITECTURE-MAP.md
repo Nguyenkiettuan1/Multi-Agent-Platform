@@ -1,12 +1,15 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # GitHub Reference Map — Kiến trúc ↔ Nguồn code
 
-> Mỗi quyết định kiến trúc PHANLAW đều có **nguồn tham chiếu cụ thể** từ repo/pattern production trên GitHub hoặc blog engineering chính thức.
+> Mỗi quyết định kiến trúc Multi-Agent đều có **nguồn tham chiếu cụ thể** từ repo/pattern production trên GitHub hoặc blog engineering chính thức.
 
 ---
 
 ## 1. Bản đồ quyết định kiến trúc
 
-| # | Quyết định PHANLAW | Nguồn tham chiếu | Repo / Link | PHANLAW file |
+| # | Quyết định kiến trúc | Nguồn tham chiếu | Repo / Link | Project file |
 |---|-------------------|------------------|-------------|--------------|
 | 1 | 3-Plane (Control / Execution / Intelligence) | Mercor Enterprise Agent Architecture | [Blog](https://www.mercor.com/blog/the-three-planes-of-enterprise-agent-systems/) | `docs/01-ARCHITECTURE.md` |
 | 2 | Supervisor multi-agent | LangGraph Supervisor | [langgraph-supervisor-py](https://github.com/langchain-ai/langgraph-supervisor-py) | `agents/orchestrator/` |
@@ -40,7 +43,7 @@
 
 ### Orchestration & State
 
-| Repo | Stars | Học gì | Dùng ở PHANLAW |
+| Repo | Stars | Học gì | Dùng trong project |
 |------|-------|---------|----------------|
 | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) | 20K+ | Graph runtime, checkpointing, HITL | **Core workflow engine** |
 | [langchain-ai/langgraph-supervisor-py](https://github.com/langchain-ai/langgraph-supervisor-py) | — | Supervisor pattern | Orchestrator |
@@ -52,7 +55,7 @@
 
 ### Tools & Protocols
 
-| Repo | Học gì | Dùng ở PHANLAW |
+| Repo | Học gì | Dùng trong project |
 |------|---------|----------------|
 | [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) | MCP server SDK | `mcp-servers/sql-server/` |
 | [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) | Reference MCP servers | sql, search patterns |
@@ -62,14 +65,14 @@
 
 ### Model Routing & Cost
 
-| Repo | Học gì | Dùng ở PHANLAW |
+| Repo | Học gì | Dùng trong project |
 |------|---------|----------------|
 | [lm-sys/RouteLLM](https://github.com/lm-sys/RouteLLM) | Strong/weak model routing | Control Plane router |
 | [BerriAI/litellm](https://github.com/BerriAI/litellm) | Unified LLM API, fallbacks | Model proxy layer |
 
 ### Quality & Consensus
 
-| Repo | Học gì | Dùng ở PHANLAW |
+| Repo | Học gì | Dùng trong project |
 |------|---------|----------------|
 | [karpathy/llm-council](https://github.com/karpathy/llm-council) | 3-stage council deliberation | Council mode (critical SLO) |
 | [openai/evals](https://github.com/openai/evals) | Eval framework patterns | `eval/cases/` |
@@ -78,7 +81,7 @@
 
 ### RAG & Knowledge
 
-| Repo | Học gì | Dùng ở PHANLAW |
+| Repo | Học gì | Dùng trong project |
 |------|---------|----------------|
 | [langchain-ai/langchain](https://github.com/langchain-ai/langchain) | RAG, retrievers, embeddings | Research agent |
 | [run-llama/llama_index](https://github.com/run-llama/llama_index) | Alternative RAG framework | Reference |
@@ -87,7 +90,7 @@
 
 ### Infrastructure & Deploy
 
-| Repo | Học gì | Dùng ở PHANLAW |
+| Repo | Học gì | Dùng trong project |
 |------|---------|----------------|
 | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) (deploy) | Production deploy patterns | Cloud deploy |
 | [docker/awesome-compose](https://github.com/docker/awesome-compose) | Docker compose patterns | `docker-compose.yml` |
@@ -106,7 +109,7 @@
 
 ## 3. PostgreSQL — Nguồn tham chiếu
 
-| Pattern | Nguồn | PHANLAW |
+| Pattern | Nguồn | Multi-Agent |
 |---------|-------|---------|
 | PostgresSaver checkpoint | [langgraph-checkpoint-postgres](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-postgres) | `platform/checkpointer.py` |
 | AsyncPostgresSaver + pool | [LangGraph reference](https://langchain-ai.github.io/langgraph/reference/checkpoints/) | Production config |

@@ -13,8 +13,8 @@ providers:
     base_url: https://openrouter.ai/api/v1
     api_key_env: OPENROUTER_API_KEY
     extra_headers:
-      HTTP-Referer: https://github.com/phanlaw/multi-agent
-      X-Title: PHANLAW Multi-Agent
+      HTTP-Referer: https://github.com/your-username/multi-agent
+      X-Title: Multi-Agent Platform
 
   azure:
     type: azure_openai

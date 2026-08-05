@@ -77,6 +77,18 @@ class SubTask(BaseModel):
     assigned_agent: AgentId
     depends_on: list[str] = Field(default_factory=list)
     status: Literal["pending", "running", "done", "failed"] = "pending"
+    task_kind: str = ""
+    tool_id: str = ""
+    tool_arguments: dict = Field(default_factory=dict)
+    high_accuracy: bool = False
+
+
+class ChatAttachment(BaseModel):
+    """Ảnh/file đính kèm từ chat UI — OCR đọc qua image_base64."""
+
+    filename: str = "attachment"
+    mime_type: str = "application/octet-stream"
+    data: str = Field(..., description="Base64 (có hoặc không prefix data:...)")
 
 
 class TaskPlan(BaseModel):
@@ -103,6 +115,7 @@ class GraphState(TypedDict):
     user_id: str
     trace_id: str
     chat_history: list[dict]
+    attachments: list[dict]
     triage: TriageResult | None
     plan: TaskPlan | None
     topology_mode: str

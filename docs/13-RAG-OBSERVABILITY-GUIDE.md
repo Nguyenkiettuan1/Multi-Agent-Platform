@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # RAG, Azure Search, Audit & Dashboard — Hướng dẫn đầy đủ
 
 > Trả lời thẳng: **phần search/RAG đã có code chạy được**, nhưng **ingestion, Azure index, audit, dashboard** mới ở mức nền tảng — doc này giải thích cái gì có, cái gì chưa, và cách setup từng bước.
@@ -178,7 +181,7 @@ curl -X POST http://localhost:8000/api/v1/admin/knowledge `
   -d "{\"doc_id\":\"policy-2024\",\"title\":\"...\",\"content\":\"...\",\"domain\":\"general\"}"
 ```
 
-**Lưu ý quyền DB:** Script ingest dùng `MIGRATE_DATABASE_URL` (user `phanlaw`). Runtime search dùng `DATABASE_URL` (user `agent_reader`, read-only) — đúng thiết kế bảo mật.
+**Lưu ý quyền DB:** Script ingest dùng `MIGRATE_DATABASE_URL` (user `multiagent`). Runtime search dùng `DATABASE_URL` (user `agent_reader`, read-only) — đúng thiết kế bảo mật.
 
 ### Verify
 

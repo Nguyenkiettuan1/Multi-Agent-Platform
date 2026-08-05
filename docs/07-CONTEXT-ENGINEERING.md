@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # Context Engineering — Quản lý Context Window
 
 > Chi tiết cách thiết kế, phân bổ, và tối ưu context window trong multi-agent system.

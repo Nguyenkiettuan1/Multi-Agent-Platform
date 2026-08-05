@@ -10,7 +10,7 @@ import { parseCitationsFromResponse } from '../../lib/citations'
 import { upsertChatSession } from '../../lib/storage'
 
 type ChatMessage =
-  | { id: string; role: 'user'; content: string }
+  | { id: string; role: 'user'; content: string; imagePreview?: string; imageName?: string }
   | {
       id: string
       role: 'assistant'
@@ -29,6 +29,29 @@ function agentIcon(agent?: string): string {
   if (agent.includes('research')) return 'travel_explore'
   if (agent.includes('db')) return 'database'
   return 'support_agent'
+}
+
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+
+async function fileToAttachment(file: File) {
+  if (!IMAGE_TYPES.includes(file.type)) {
+    throw new Error('Chỉ hỗ trợ ảnh PNG, JPEG, WebP hoặc GIF')
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error('Ảnh tối đa 4MB')
+  }
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('Không đọc được file'))
+    reader.readAsDataURL(file)
+  })
+  const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl
+  return {
+    attachment: { filename: file.name, mime_type: file.type, data: base64 },
+    preview: dataUrl,
+  }
 }
 
 function turnsToMessages(turns: Array<{
@@ -64,6 +87,12 @@ export function ChatPage() {
   const [error, setError] = useState<string | null>(null)
   const [expandedCitations, setExpandedCitations] = useState<string | null>(null)
   const [livePipeline, setLivePipeline] = useState<PipelineStep[]>([])
+  const [pendingImage, setPendingImage] = useState<{
+    preview: string
+    name: string
+    attachment: { filename: string; mime_type: string; data: string }
+  } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollToBottomOnUpdate = useRef(false)
@@ -132,12 +161,22 @@ export function ChatPage() {
 
   const handleSend = useCallback(async () => {
     const text = message.trim()
-    if (!text || loading) return
+    if ((!text && !pendingImage) || loading) return
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text }
+    const attachment = pendingImage?.attachment
+    const displayText = text || (attachment ? 'Đọc thông tin trong ảnh đính kèm' : '')
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: displayText,
+      imagePreview: pendingImage?.preview,
+      imageName: pendingImage?.name,
+    }
     scrollToBottomOnUpdate.current = true
     setMessages((prev) => [...prev, userMsg])
     setMessage('')
+    setPendingImage(null)
+    if (fileRef.current) fileRef.current.value = ''
     setLoading(true)
     setError(null)
     setLivePipeline([])
@@ -150,9 +189,10 @@ export function ChatPage() {
     try {
       const stream = api.chatStream(
         {
-          message: text,
+          message: text || displayText,
           session_id: activeSessionId ?? null,
           user_id: 'frontend-user',
+          attachments: attachment ? [attachment] : undefined,
         },
         appendStep,
       )
@@ -172,7 +212,7 @@ export function ChatPage() {
 
       upsertChatSession({
         id: res.session_id,
-        title: truncate(text, 40),
+        title: truncate(displayText, 40),
         updatedAt: new Date().toISOString(),
       })
 
@@ -198,7 +238,27 @@ export function ChatPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeSessionId, loading, message, navigate, routeSessionId])
+  }, [activeSessionId, loading, message, navigate, pendingImage, routeSessionId])
+
+  const handlePickImage = () => {
+    if (!loading && !loadingHistory) fileRef.current?.click()
+  }
+
+  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    void fileToAttachment(file)
+      .then(({ attachment, preview }) => {
+        setPendingImage({ preview, name: file.name, attachment })
+        setError(null)
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Không đọc được ảnh')
+        e.target.value = ''
+      })
+  }
+
+  const canSend = (message.trim().length > 0 || !!pendingImage) && !loading && !loadingHistory
 
   const handleRate = async (traceId: string, rating: number) => {
     try {
@@ -254,6 +314,11 @@ export function ChatPage() {
               msg.role === 'user' ? (
                 <div key={msg.id} className="flex w-full justify-end">
                   <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-surface-container-high px-5 py-3.5 text-body-lg text-on-surface">
+                    {msg.imagePreview ? (
+                      <div className="mb-2 overflow-hidden rounded-lg border border-border-subtle">
+                        <img src={msg.imagePreview} alt={msg.imageName ?? 'Đính kèm'} className="max-h-48 w-auto object-contain" />
+                      </div>
+                    ) : null}
                     {msg.content}
                   </div>
                 </div>
@@ -375,6 +440,33 @@ export function ChatPage() {
 
       <div className="absolute bottom-0 left-0 z-10 flex w-full justify-center bg-gradient-to-t from-background via-background to-transparent px-4 pt-6 pb-6 sm:px-8">
         <div className="relative w-full max-w-container-max-chat rounded-xl border border-border-subtle bg-surface-container-lowest shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition-all focus-within:border-secondary focus-within:ring-1 focus-within:ring-secondary">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={handleImageSelected}
+          />
+          {pendingImage ? (
+            <div className="flex items-center gap-3 border-b border-border-subtle px-4 py-2">
+              <img src={pendingImage.preview} alt="" className="h-14 w-14 rounded-md object-cover" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-label-sm text-on-surface">{pendingImage.name}</p>
+                <p className="text-label-sm text-on-surface-variant">Ảnh sẽ gửi kèm để OCR/đọc thông tin</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingImage(null)
+                  if (fileRef.current) fileRef.current.value = ''
+                }}
+                className="rounded-md p-1 text-on-surface-variant hover:bg-surface-container-low"
+                title="Xóa ảnh"
+              >
+                <MaterialIcon name="close" size={18} />
+              </button>
+            </div>
+          ) : null}
           <textarea
             rows={1}
             value={message}
@@ -385,14 +477,20 @@ export function ChatPage() {
             className="min-h-[60px] max-h-[200px] w-full resize-none border-none bg-transparent px-4 py-4 text-body-md text-on-surface focus:ring-0 focus:outline-none disabled:opacity-60"
           />
           <div className="flex items-center justify-between px-3 pb-3">
-            <button type="button" className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low" title="Đính kèm">
+            <button
+              type="button"
+              onClick={handlePickImage}
+              disabled={loading || loadingHistory}
+              className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50"
+              title="Đính kèm ảnh (OCR)"
+            >
               <MaterialIcon name="attach_file" size={20} />
             </button>
             <div className="flex items-center gap-3">
               <span className="text-label-sm text-outline">{message.length}/8000</span>
               <button
                 type="button"
-                disabled={!message.trim() || loading || loadingHistory}
+                disabled={!canSend}
                 onClick={() => void handleSend()}
                 className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-label-md text-on-primary transition-colors hover:bg-inverse-surface disabled:opacity-50"
               >

@@ -1,3 +1,6 @@
+> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
+> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+
 # Hạ tầng: Local PostgreSQL → Cloud
 
 > **Nguyên tắc:** PostgreSQL từ ngày đầu — local qua Docker, sau đó migrate lên Azure Database for PostgreSQL mà **không đổi application code**.
@@ -34,7 +37,7 @@ flowchart TB
 
 | Schema | Mục đích | Ai truy cập | Ghi chú |
 |--------|----------|-------------|---------|
-| `app` | Dữ liệu nghiệp vụ PHANLAW | DB Worker qua sql-mcp (read-only) | User data, contracts |
+| `app` | Dữ liệu nghiệp vụ ứng dụng | DB Worker qua sql-mcp (read-only) | User data, contracts |
 | `platform` | Runtime agent system | Workflow engine, Gateway | Checkpoints, audit, DAG |
 
 **Local:** 1 PostgreSQL instance, 2 schemas.
@@ -85,7 +88,7 @@ python scripts/seed.py
 python scripts/seed_vectors.py
 
 # 5. Verify
-docker exec phanlaw-postgres psql -U phanlaw -d phanlaw -c "SELECT code, status FROM app.contracts;"
+docker exec multiagent-postgres psql -U multiagent -d multiagent -c "SELECT code, status FROM app.contracts;"
 ```
 
 ---
@@ -96,10 +99,10 @@ docker exec phanlaw-postgres psql -U phanlaw -d phanlaw -c "SELECT code, status 
 
 ```env
 # Business data (app schema) — DB agent queries here
-DATABASE_URL=postgresql+psycopg://phanlaw:phanlaw@localhost:5432/phanlaw?options=-csearch_path%3Dapp
+DATABASE_URL=postgresql+psycopg://multiagent:multiagent@localhost:5432/multiagent?options=-csearch_path%3Dapp
 
 # Platform runtime (checkpoints, audit) — LangGraph PostgresSaver
-PLATFORM_DATABASE_URL=postgresql://phanlaw:phanlaw@localhost:5432/phanlaw?options=-csearch_path%3Dplatform
+PLATFORM_DATABASE_URL=postgresql://multiagent:multiagent@localhost:5432/multiagent?options=-csearch_path%3Dplatform
 
 # Session cache
 REDIS_URL=redis://localhost:6379/0
@@ -108,8 +111,8 @@ REDIS_URL=redis://localhost:6379/0
 ### Cloud (Azure — same code, different URLs)
 
 ```env
-DATABASE_URL=postgresql+psycopg://user@server.postgres.database.azure.com:5432/phanlaw?sslmode=require&options=-csearch_path%3Dapp
-PLATFORM_DATABASE_URL=postgresql://user@server.postgres.database.azure.com:5432/phanlaw?sslmode=require&options=-csearch_path%3Dplatform
+DATABASE_URL=postgresql+psycopg://user@server.postgres.database.azure.com:5432/multiagent?sslmode=require&options=-csearch_path%3Dapp
+PLATFORM_DATABASE_URL=postgresql://user@server.postgres.database.azure.com:5432/multiagent?sslmode=require&options=-csearch_path%3Dplatform
 REDIS_URL=rediss://:password@cache.redis.cache.windows.net:6380/0
 ```
 
@@ -205,10 +208,10 @@ flowchart LR
 
 ```bash
 # Export local
-pg_dump -h localhost -U phanlaw -d phanlaw -n app --data-only > app_data.sql
+pg_dump -h localhost -U multiagent -d multiagent -n app --data-only > app_data.sql
 
 # Import staging
-psql "postgresql://user@staging.postgres.database.azure.com/phanlaw" -f app_data.sql
+psql "postgresql://user@staging.postgres.database.azure.com/multiagent" -f app_data.sql
 ```
 
 ---
