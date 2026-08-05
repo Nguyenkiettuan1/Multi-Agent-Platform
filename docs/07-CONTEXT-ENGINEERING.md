@@ -1,38 +1,38 @@
-# Context Engineering — Quản lý Context Window
+# Context Engineering — Context Window Management
 
-> Chi tiết cách thiết kế, phân bổ, và tối ưu context window trong multi-agent system.
+> Details on how to design, allocate, and optimize the context window in a multi-agent system.
 
 ---
 
-## 1. Vấn đề Context Window
+## 1. Context Window Problems
 
-| Vấn đề | Nguyên nhân | Hậu quả |
+| Problem | Cause | Consequence |
 |--------|-------------|----------|
-| **Blowup** | `full_history` mode, mọi agent thấy mọi message | Vượt 128K tokens ở step 15–20 |
-| **Pollution** | Worker thấy conversation của worker khác | Confused reasoning, wrong tool calls |
-| **Waste** | Dump raw tool output vào messages | 80% tokens là noise |
-| **Lost plan** | Context truncated, mất master plan | Agent "quên" đang làm gì |
+| **Blowup** | `full_history` mode — every agent sees every message | Exceeds 128K tokens at steps 15–20 |
+| **Pollution** | Workers see other workers' conversations | Confused reasoning, wrong tool calls |
+| **Waste** | Dumping raw tool output into messages | 80% of tokens are noise |
+| **Lost plan** | Context truncated, master plan lost | Agent "forgets" what it was doing |
 
-Tham chiếu: [Anthropic — 200K limit → external memory](https://www.anthropic.com/engineering/multi-agent-research-system)
+Reference: [Anthropic — 200K limit → external memory](https://www.anthropic.com/engineering/multi-agent-research-system)
 
 ---
 
-## 2. Nguyên tắc thiết kế
+## 2. Design Principles
 
 ### Principle 1: Isolation by Default
-> Mỗi subagent nhận **chỉ sub-task description** + **tools** + **skills**. Không thấy full conversation.
+> Each subagent receives **only the sub-task description** + **tools** + **skills**. It does not see the full conversation.
 
 ### Principle 2: State, Not Messages
-> Agents ghi kết quả vào **typed state keys**. Chỉ Synthesizer đọc aggregated state.
+> Agents write results to **typed state keys**. Only the Synthesizer reads aggregated state.
 
 ### Principle 3: Condense Before Transfer
-> Tool results → summarize → state key. Raw output KHÔNG vào message history.
+> Tool results → summarize → state key. Raw output does NOT go into message history.
 
 ### Principle 4: Budget per Role
-> Mỗi role có token budget. Overflow → summarize hoặc external memory.
+> Each role has a token budget. Overflow → summarize or external memory.
 
 ### Principle 5: Plan Persistence
-> Master plan luôn persist (external memory / state), survive context truncation.
+> Master plan always persists (external memory / state), surviving context truncation.
 
 ---
 
@@ -143,9 +143,9 @@ class AgentState(TypedDict):
     citations: list[dict] | None
 ```
 
-### Quy tắc đọc/ghi state
+### State read/write rules
 
-| Agent | Đọc | Ghi |
+| Agent | Read | Write |
 |-------|-----|-----|
 | Triage | `user_intent` | `complexity_score`, `topology_mode` |
 | Planner | `user_intent`, `complexity_score` | `plan`, `task_dag` |
@@ -160,9 +160,9 @@ class AgentState(TypedDict):
 
 ```python
 async def invoke_worker(state: AgentState, task: TaskNode) -> WorkerResult:
-    """Worker nhận ISOLATED context — không thấy full conversation."""
+    """Worker receives ISOLATED context — does not see full conversation."""
 
-  isolated_context = {
+    isolated_context = {
         "sub_task": task["description"],
         "plan_excerpt": summarize(state["plan"], max_tokens=500),
         "prior_results": {
@@ -185,7 +185,7 @@ async def invoke_worker(state: AgentState, task: TaskNode) -> WorkerResult:
     )
 ```
 
-**Key:** Worker KHÔNG nhận `state["messages"]`. Chỉ nhận condensed prior results.
+**Key:** Worker does NOT receive `state["messages"]`. It only receives condensed prior results.
 
 ---
 
@@ -228,7 +228,7 @@ def pre_model_hook(state: AgentState) -> dict:
 
 ### 6.3 External Memory (long-horizon)
 
-Khi context > 200K tokens (Anthropic Research pattern):
+When context exceeds 200K tokens (Anthropic Research pattern):
 
 ```python
 async def persist_plan(state: AgentState) -> None:
@@ -266,8 +266,8 @@ supervisor = create_supervisor(
 
 | Mode | Behavior | Use |
 |------|----------|-----|
-| `last_message` | Supervisor chỉ thấy message cuối từ worker | **Production** |
-| `full_history` | Supervisor thấy toàn bộ worker conversation | Debug only (log to LangSmith) |
+| `last_message` | Supervisor only sees the last message from the worker | **Production** |
+| `full_history` | Supervisor sees the entire worker conversation | Debug only (log to LangSmith) |
 
 ---
 

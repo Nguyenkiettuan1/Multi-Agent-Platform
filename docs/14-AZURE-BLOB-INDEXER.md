@@ -1,31 +1,31 @@
-# Azure Blob Indexer — Tự động index tài liệu lên Azure Search
+# Azure Blob Indexer — Automatically Index Documents to Azure Search
 
-> P1 còn lại: **không chạy trong code local** — setup trên Azure Portal. Sau khi xong, agent query qua `hybrid_search()` → `azure_search()` như bình thường.
-
----
-
-## Khi nào dùng?
-
-| Scenario | Dùng gì |
-|----------|---------|
-| Dev local, vài chục doc | pgvector + `scripts/ingest_file.py` |
-| Production, hàng nghìn PDF/wiki | Azure Blob + Indexer → Azure Search |
-| Hybrid | Cả hai — Azure primary, pgvector fallback |
+> Remaining P1: **does not run in local code** — set up on Azure Portal. Once done, the agent queries via `hybrid_search()` → `azure_search()` as usual.
 
 ---
 
-## Setup trên Azure (tóm tắt)
+## When to use?
 
-### 1. Tạo Storage Account + Container
+| Scenario | Use |
+|----------|-----|
+| Local dev, dozens of docs | pgvector + `scripts/ingest_file.py` |
+| Production, thousands of PDFs/wiki | Azure Blob + Indexer → Azure Search |
+| Hybrid | Both — Azure primary, pgvector fallback |
+
+---
+
+## Azure setup (summary)
+
+### 1. Create Storage Account + Container
 
 ```
-Azure Portal → Storage Account → Containers → tạo "documents"
-Upload PDF/DOCX vào container
+Azure Portal → Storage Account → Containers → create "documents"
+Upload PDF/DOCX to container
 ```
 
-### 2. Tạo Azure AI Search index
+### 2. Create Azure AI Search index
 
-Index `knowledge-index` với fields (khớp code):
+Index `knowledge-index` with fields (matching code):
 
 | Field | Type | Attributes |
 |-------|------|------------|
@@ -36,44 +36,44 @@ Index `knowledge-index` với fields (khớp code):
 | `domain` | Edm.String | filterable, facetable |
 | `source` | Edm.String | filterable |
 
-### 3. Tạo Data Source
+### 3. Create Data Source
 
 ```
 Azure AI Search → Data sources → Add
 Type: Azure Blob Storage
-Connection string: từ Storage Account
+Connection string: from Storage Account
 Container: documents
 ```
 
-### 4. Tạo Skillset (optional — chunking trên Azure)
+### 4. Create Skillset (optional — chunking on Azure)
 
-Nếu file PDF lớn, dùng **Text Split skill**:
-- `maximumPageLength`: 800 (khớp `CHUNK_SIZE`)
-- `pageOverlapLength`: 120 (khớp `CHUNK_OVERLAP`)
+For large PDF files, use **Text Split skill**:
+- `maximumPageLength`: 800 (matches `CHUNK_SIZE`)
+- `pageOverlapLength`: 120 (matches `CHUNK_OVERLAP`)
 
 Skillset pipeline:
 ```
 Document Extraction → Text Split → Merge → Index projection
 ```
 
-### 5. Tạo Indexer
+### 5. Create Indexer
 
 ```
 Azure AI Search → Indexers → Add
 Data source: blob-documents
 Target index: knowledge-index
-Skillset: (nếu có)
-Schedule: hourly hoặc on-demand
+Skillset: (if applicable)
+Schedule: hourly or on-demand
 ```
 
-### 6. Chạy indexer + verify
+### 6. Run indexer + verify
 
 ```
-Indexers → Run → kiểm tra Execution history
+Indexers → Run → check Execution history
 Search explorer: query "hop dong"
 ```
 
-### 7. Điền `.env` trên app server
+### 7. Fill in `.env` on app server
 
 ```env
 AZURE_SEARCH_ENDPOINT=https://YOUR.search.windows.net
@@ -83,24 +83,24 @@ AZURE_SEARCH_INDEX_NAME=knowledge-index
 
 ---
 
-## Đồng bộ với pgvector?
+## Sync with pgvector?
 
-Hiện tại **không tự sync**. Hai lựa chọn:
+Currently **no auto-sync**. Two options:
 
-| Cách | Mô tả |
-|------|-------|
-| Azure-only | Chỉ index lên Azure, pgvector làm fallback dev |
-| Dual-write | Sau ingest local, chạy `python scripts/index_azure.py` |
-| Azure-primary | Production chỉ dùng Blob indexer, bỏ pgvector ingest |
+| Approach | Description |
+|----------|-------------|
+| Azure-only | Index only to Azure, pgvector as dev fallback |
+| Dual-write | After local ingest, run `python scripts/index_azure.py` |
+| Azure-primary | Production uses Blob indexer only, skip pgvector ingest |
 
 ---
 
-## So sánh chunking: local vs Azure
+## Chunking comparison: local vs Azure
 
 | | Local (`chunk_text`) | Azure (Text Split skill) |
 |--|---------------------|--------------------------|
-| Preview | `--preview`, `/chunk-eval` | Search explorer sau index |
+| Preview | `--preview`, `/chunk-eval` | Search explorer after index |
 | Tune | `CHUNK_SIZE`, `CHUNK_OVERLAP` | Skill parameters |
-| Eval query | `POST /chunk-eval` | Manual query trên Portal |
+| Eval query | `POST /chunk-eval` | Manual query on Portal |
 
-Khuyến nghị: tune chunking local trước với `chunk-eval`, rồi copy params sang Azure skillset.
+Recommendation: tune chunking locally with `chunk-eval` first, then copy params to Azure skillset.

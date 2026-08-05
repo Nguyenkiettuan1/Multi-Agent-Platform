@@ -52,6 +52,7 @@ async def complete_worker_task(
         AgentId.LEGAL_WORKER: LEGAL_SYSTEM,
         AgentId.RESEARCH_WORKER: RESEARCH_SYSTEM,
         AgentId.DB_WORKER: GENERAL_SYSTEM,
+        AgentId.ACTION_WORKER: GENERAL_SYSTEM,
     }
     system = system_map.get(agent, GENERAL_SYSTEM) + _skill_context(skill_name)
 
@@ -87,7 +88,7 @@ async def review_with_llm(
         *_history_messages(chat_history, max_turns=4),
         {
             "role": "user",
-            "content": f"Yêu cầu: {user_message}\n\nKết quả workers:\n{summaries}",
+            "content": f"Request: {user_message}\n\nWorker results:\n{summaries}",
         },
     ]
 
@@ -123,10 +124,10 @@ async def synthesize_with_llm(
         {
             "role": "user",
             "content": (
-                f"Yêu cầu gốc: {user_message}\n"
+                f"Original request: {user_message}\n"
                 f"Review: {review_status}\n\n"
-                f"Kết quả từng agent:\n{summaries}\n\n"
-                "Viết câu trả lời cuối cho user."
+                f"Results per agent:\n{summaries}\n\n"
+                "Write the final answer for the user."
             ),
         },
     ]

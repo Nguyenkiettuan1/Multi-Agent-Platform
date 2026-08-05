@@ -1,0 +1,41 @@
+# Media task routing — task descriptions + tool mapping (no hardcoded keywords).
+# Task classification: LLM at plan stage (core/planning/llm_media_classifier.py).
+# Tool ID = {server_id}/{tool_name}
+
+defaults:
+  image_mime_prefix: image/
+  min_ocr_text_chars: 10
+  image_only_message: "Read information from the attached image"
+  upload_subdir: data/chat-uploads
+
+task_kinds:
+  ocr:
+    description: >
+      Read text, numbers, and tables from images/PDF scans — invoices, receipts, screenshots, photographed documents.
+    agent: action-worker
+    tools:
+      primary:
+        server: builtin-ocr
+        name: ocr_extract
+      fallback:
+        - server: paddleocr
+          name: ocr
+          when: high_accuracy
+
+  translate:
+    description: >
+      Translate text to another language (vi, en, ja, …).
+    agent: action-worker
+    tools:
+      primary:
+        server: builtin-translate
+        name: translate_text
+
+  merge_images:
+    description: >
+      Merge multiple images into one (horizontal or vertical).
+    agent: action-worker
+    tools:
+      primary:
+        server: builtin-image
+        name: merge_images

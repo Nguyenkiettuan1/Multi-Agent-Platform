@@ -1,6 +1,10 @@
 # Legal Research (Domain Skill)
 
-> Domain plug-in — một trong nhiều domain skills. Platform vẫn đa năng.
+> Optional domain plug-in — the platform remains general-purpose; legal is one vertical among many.
 
-- `skill.yaml` — triggers pháp lý, agent assignment
-- `SKILL.md` — quy tắc tra cứu cho legal-agent
+| File | Purpose |
+|------|---------|
+| `skill.yaml` | Legal triggers, agent assignment |
+| `SKILL.md` | Lookup rules for `legal-agent` |
+
+Only routed when triage detects legal intent.

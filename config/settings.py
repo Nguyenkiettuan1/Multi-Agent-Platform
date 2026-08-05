@@ -1,10 +1,10 @@
 """
-Cấu hình tập trung — DUY NHẤT nơi đọc biến môi trường.
+Centralized configuration — the ONLY place to read environment variables.
 
-Quy tắc:
-- KHÔNG hardcode password / connection string trong file .py
-- Giá trị thật nằm trong .env (local) hoặc Key Vault (cloud)
-- .env.example chỉ là mẫu, không chứa secret production
+Rules:
+- Do NOT hardcode passwords / connection strings in .py files
+- Real values live in .env (local) or Key Vault (cloud)
+- .env.example is a template only — no production secrets
 """
 
 from functools import lru_cache
@@ -13,7 +13,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Thư mục gốc project (multi-agent/)
+# Project root directory (multi-agent/)
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -24,21 +24,21 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Bắt buộc: phải có trong .env ---
+    # --- Required: must be set in .env ---
     database_url: str = Field(
         ...,
         description="PostgreSQL app schema — DB agent read-only (agent_reader)",
     )
     platform_database_url: str | None = Field(
         default=None,
-        description="PostgreSQL platform schema — bắt buộc cho LangGraph checkpointer",
+        description="PostgreSQL platform schema — required for LangGraph checkpointer",
     )
     migrate_database_url: str | None = Field(
         default=None,
-        description="PostgreSQL admin — chỉ bắt buộc khi chạy scripts/db_migrate.py hoặc scripts/seed.py",
+        description="PostgreSQL admin — only required when running scripts/db_migrate.py or scripts/seed.py",
     )
 
-    # --- Tùy chọn: có default an toàn (không phải secret) ---
+    # --- Optional: safe defaults (not secrets) ---
     redis_url: str = "redis://localhost:6379/0"
     mcp_query_timeout_seconds: int = 30
     mcp_max_rows: int = 100
@@ -47,8 +47,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     app_env: str = "local"
 
-    # LLM providers — bật provider nào thì điền key tương ứng
-    # OpenRouter: 1 key → 400+ models (OpenAI, Claude, Google, DeepSeek...)
+    # LLM providers — set keys for providers you enable
+    # OpenRouter: one key → 400+ models (OpenAI, Claude, Google, DeepSeek...)
     openrouter_api_key: str = ""
     openai_api_key: str = ""
     google_api_key: str = ""
@@ -57,15 +57,15 @@ class Settings(BaseSettings):
     azure_openai_endpoint: str = ""
     azure_openai_api_key: str = ""
 
-    # API security — để trống = tắt auth (local dev)
+    # API security — empty = auth disabled (local dev)
     api_key: str = ""
 
-    # Embeddings — chọn provider + model rõ ràng (xem .env.example)
-    # openai | openrouter | azure | auto (đoán từ key + tên model)
+    # Embeddings — choose provider + model explicitly (see .env.example)
+    # openai | openrouter | azure | auto (infer from key + model name)
     embedding_provider: str = "auto"
     embedding_model: str = "text-embedding-3-small"
-    embedding_deployment: str = ""  # Azure: tên deployment (nếu khác model)
-    embedding_dimensions: int = 1536  # phải khớp DB vector(N) và model
+    embedding_deployment: str = ""  # Azure: deployment name (if different from model)
+    embedding_dimensions: int = 1536  # must match DB vector(N) and model
     azure_openai_api_version: str = "2025-01-01-preview"
 
     # RAG chunking
@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     # Search quality
     search_rerank_enabled: bool = True
 
-    # Eval — LLM-as-judge (cần LLM provider)
+    # Eval — LLM-as-judge (requires LLM provider)
     eval_llm_judge_enabled: bool = False
 
     # Azure AI Search (optional — cloud RAG)
@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     # Web search (Tavily) — optional
     tavily_api_key: str = ""
     web_search_max_results: int = 5
-    web_search_depth: str = "advanced"  # basic | advanced — advanced lấy nội dung trang đầy đủ hơn
+    web_search_depth: str = "advanced"  # basic | advanced — advanced fetches fuller page content
 
     # Langfuse tracing (optional)
     langfuse_tracing_enabled: bool = False
@@ -100,5 +100,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Singleton — gọi ở mọi nơi cần config."""
+    """Singleton — call from anywhere config is needed."""
     return Settings()

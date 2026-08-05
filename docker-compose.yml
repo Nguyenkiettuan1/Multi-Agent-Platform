@@ -1,18 +1,18 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: phanlaw-postgres
+    container_name: multiagent-postgres
     environment:
-      POSTGRES_USER: phanlaw
-      POSTGRES_PASSWORD: phanlaw
-      POSTGRES_DB: phanlaw
+      POSTGRES_USER: multiagent
+      POSTGRES_PASSWORD: multiagent
+      POSTGRES_DB: multiagent
     ports:
-      - "5434:5432"   # host 5434 — tránh 5432 (PG native) và 5433 (postgres_db cũ)
+      - "5434:5432"   # host 5434 — avoids 5432 (native PG) and 5433 (legacy postgres_db)
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Migrations: chạy bằng python scripts/db_migrate.py (không mount initdb — tránh chạy đôi)
+      # Migrations: run via python scripts/db_migrate.py (no initdb mount — avoids double-run)
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U phanlaw -d phanlaw"]
+      test: ["CMD-SHELL", "pg_isready -U multiagent -d multiagent"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: phanlaw-redis
+    container_name: multiagent-redis
     ports:
       - "6379:6379"
     volumes:
@@ -32,11 +32,11 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # pgAdmin — GUI quản lý PostgreSQL (không cần cài client riêng)
-  # Truy cập: http://localhost:5050
+  # pgAdmin — PostgreSQL GUI (no separate client install needed)
+  # Access: http://localhost:5050
   pgadmin:
     image: dpage/pgadmin4:8
-    container_name: phanlaw-pgadmin
+    container_name: multiagent-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@local.dev
       PGADMIN_DEFAULT_PASSWORD: admin

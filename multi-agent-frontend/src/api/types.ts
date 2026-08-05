@@ -25,10 +25,17 @@ export type ChatHistoryResponse = {
   count: number
 }
 
+export type ChatAttachment = {
+  filename: string
+  mime_type: string
+  data: string
+}
+
 export type ChatRequest = {
   message: string
   session_id?: string | null
   user_id?: string
+  attachments?: ChatAttachment[]
 }
 
 export type PipelineStep = {

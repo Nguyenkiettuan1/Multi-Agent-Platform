@@ -1,20 +1,20 @@
 # Model Tiering & Routing
 
-> Chi tiết cách phân cấp model, route request, và tối ưu cost/quality.
+> Details on model tiering, request routing, and cost/quality optimization.
 
 ---
 
-## 1. Tại sao cần Model Tiering?
+## 1. Why Model Tiering?
 
-**Sai lầm phổ biến:** Dùng 1 model (GPT-4) cho mọi agent → chi phí ×10, latency ×3, không cần thiết.
+**Common mistake:** Using one model (GPT-4) for every agent → cost ×10, latency ×3, often unnecessary.
 
-**Thực tế production:**
-- 60% requests chỉ cần classify/route → model rẻ (mini)
-- 25% cần tool use + reasoning vừa → model balanced (sonnet/4.1)
-- 10% cần planning/synthesis phức tạp → model mạnh (opus/o3)
-- 5% cần multi-model consensus → council mode
+**Production reality:**
+- 60% of requests only need classify/route → cheap model (mini)
+- 25% need moderate tool use + reasoning → balanced model (sonnet/4.1)
+- 10% need complex planning/synthesis → strong model (opus/o3)
+- 5% need multi-model consensus → council mode
 
-Tham chiếu: [RouteLLM — 85% cost reduction](https://github.com/lm-sys/RouteLLM), [OpenAI Swarm — cheap model for triage](https://github.com/openai/swarm)
+References: [RouteLLM — 85% cost reduction](https://github.com/lm-sys/RouteLLM), [OpenAI Swarm — cheap model for triage](https://github.com/openai/swarm)
 
 ---
 
@@ -36,7 +36,7 @@ role_model_mapping:
   triage:           T0
   micro_worker:     T0
   domain_worker:    T1
-  reviewer:         T1    # KHÔNG dùng T0 cho review
+  reviewer:         T1    # Do NOT use T0 for review
   citation_agent:   T1
   meta_planner:     T2
   synthesizer:      T2
@@ -45,11 +45,11 @@ role_model_mapping:
 
 ---
 
-## 3. Ba cơ chế Routing
+## 3. Three Routing Mechanisms
 
 ### 3.1 Role-based (Static) — Default
 
-Model cố định theo agent role. Predictable, auditable.
+Fixed model per agent role. Predictable, auditable.
 
 ```python
 ROLE_TIER = {
@@ -59,12 +59,12 @@ ROLE_TIER = {
 }
 ```
 
-**Ưu:** Đơn giản, dễ debug, dễ audit.
-**Nhược:** Không tối ưu per-query.
+**Pros:** Simple, easy to debug, easy to audit.
+**Cons:** Not optimized per query.
 
 ### 3.2 Query-based (Dynamic) — RouteLLM
 
-Classifier đánh giá complexity mỗi request, route strong/weak model.
+A classifier evaluates complexity per request and routes to strong/weak models.
 
 ```
 Request → BERT Classifier → complexity_score
@@ -72,7 +72,7 @@ Request → BERT Classifier → complexity_score
   else → T0/T1 (weak)
 ```
 
-Tham chiếu: [RouteLLM](https://github.com/lm-sys/RouteLLM)
+Reference: [RouteLLM](https://github.com/lm-sys/RouteLLM)
 
 ```python
 from routellm.controller import Controller
@@ -90,14 +90,14 @@ response = router.chat.completions.create(
 )
 ```
 
-**Kết quả RouteLLM:**
+**RouteLLM results:**
 - 85% cost reduction (MT-Bench)
 - 95% quality of always-strong
 - <10ms routing decision (BERT classifier)
 
 ### 3.3 Step-based (Per-node) — CASTER
 
-Trước MỖI node trong LangGraph workflow, router quyết định tier.
+Before EACH node in the LangGraph workflow, the router decides the tier.
 
 ```
 Graph execution:
@@ -107,8 +107,8 @@ Graph execution:
   Node: reviewer → Router: T1 (review failed at T0 → upgrade to T1)
 ```
 
-**Ưu:** Tối ưu nhất, adaptive.
-**Nhược:** Phức tạp, cần LangGraph integration.
+**Pros:** Most optimized, adaptive.
+**Cons:** Complex, requires LangGraph integration.
 
 ---
 
@@ -134,7 +134,7 @@ Incoming Request
 
 ---
 
-## 5. Cost Model (ví dụ)
+## 5. Cost Model (example)
 
 ### Per-request cost estimate
 
@@ -190,7 +190,7 @@ response = litellm.completion(
 | T2 | Selective | SFT | Planning, synthesis examples |
 | T3 | No | Use base models | N/A |
 
-**Strategy:** Fine-tune T1 workers cho domain PHANLAW (legal, contracts). Giữ T0/T2 dùng base models.
+**Strategy:** Fine-tune T1 workers for custom domains (legal, contracts). Keep T0/T2 on base models.
 
 ---
 
@@ -211,4 +211,4 @@ routing_metrics:
   - router_accuracy: 0.92     # vs human labels
 ```
 
-**Alert:** Nếu `upgrade_rate > 10%` → router đang under-estimate complexity, cần retrain.
+**Alert:** If `upgrade_rate > 10%` → the router is under-estimating complexity; retrain is needed.

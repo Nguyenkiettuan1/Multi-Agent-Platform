@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ingest một tài liệu vào knowledge base — python scripts/ingest_document.py --help"""
+"""Ingest a document into the knowledge base — python scripts/ingest_document.py --help"""
 
 from __future__ import annotations
 

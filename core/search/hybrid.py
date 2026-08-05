@@ -76,7 +76,7 @@ async def hybrid_search(
 
 def format_hits_for_llm(result: HybridSearchResult) -> str:
     if not result.hits:
-        return "Không tìm thấy tài liệu liên quan."
+        return "No relevant documents found."
     parts = []
     for i, h in enumerate(result.hits, 1):
         parts.append(

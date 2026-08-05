@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Đẩy knowledge_documents từ PostgreSQL lên Azure AI Search index.
+"""Push knowledge_documents from PostgreSQL to Azure AI Search index.
 
 Usage:
   python scripts/index_azure.py
   python scripts/index_azure.py --domain legal
-  python scripts/index_azure.py --setup-index   # tạo index trước khi upload
+  python scripts/index_azure.py --setup-index   # create index before upload
 """
 
 from __future__ import annotations

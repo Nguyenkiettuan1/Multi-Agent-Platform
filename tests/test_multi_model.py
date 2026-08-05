@@ -8,7 +8,7 @@ import pytest
 
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5432/phanlaw",
+    "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5432/multiagent",
 )
 
 
@@ -23,7 +23,7 @@ async def test_plan_general_question():
 
 
 def test_agent_model_from_registry():
-    """Lớp 2: agent override — Swarm/CrewAI/Anthropic pattern."""
+    """Layer 2: agent override — Swarm/CrewAI/Anthropic pattern."""
     from core.llm.resolver import ResolveSource, resolve_model
     from workflows.state import AgentId
 
@@ -39,7 +39,7 @@ def test_agent_model_from_registry():
 
 
 def test_pipeline_model_from_orchestrator():
-    """Lớp 3: pipeline nodes — LangGraph/Anthropic control plane."""
+    """Layer 3: pipeline nodes — LangGraph/Anthropic control plane."""
     from core.llm.resolver import ResolveSource, resolve_model
 
     res = resolve_model("meta-planner")

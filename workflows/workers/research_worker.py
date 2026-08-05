@@ -43,8 +43,8 @@ def _structured_fallback(citations) -> str:
         if excerpt:
             bullets.append(f"- {excerpt} [{c.ref_id}]")
     if not bullets:
-        return "Không tìm thấy nội dung chi tiết trong các nguồn."
-    return "Tóm tắt từ các nguồn tìm được:\n" + "\n".join(bullets)
+        return "No detailed content found in the sources."
+    return "Summary from retrieved sources:\n" + "\n".join(bullets)
 
 
 async def _synthesize_answer(
@@ -56,7 +56,7 @@ async def _synthesize_answer(
     """Retry synthesis with general agent if research model returns empty."""
     prompt = (
         f"{CITATION_INSTRUCTION}\n\n"
-        f"Tài liệu tìm được:\n{context}"
+        f"Retrieved documents:\n{context}"
     )
     for agent in (AgentId.RESEARCH_WORKER, AgentId.GENERAL):
         summary = await complete_worker_task(
@@ -84,9 +84,9 @@ async def run_research_worker(task: SubTask, *, chat_history: list[dict] | None 
         if not result.citations and "none" in result.backends_used:
             context = (
                 f"{context}\n\n"
-                "(Không có tài liệu nội bộ hoặc Azure Search. "
-                "Nếu TAVILY_API_KEY được cấu hình, đã thử web search. "
-                "Trả lời dựa trên nguồn tìm được hoặc kiến thức chung, nêu rõ giới hạn.)"
+                "(No internal documents or Azure Search results. "
+                "If TAVILY_API_KEY is configured, web search was attempted. "
+                "Answer based on retrieved sources or general knowledge, and state limitations clearly.)"
             )
 
         summary = await _synthesize_answer(
@@ -100,8 +100,8 @@ async def run_research_worker(task: SubTask, *, chat_history: list[dict] | None 
                 summary = _structured_fallback(result.citations)
             else:
                 summary = (
-                    "Không tìm thấy tài liệu nội bộ hoặc web cho câu hỏi này. "
-                    f"Thử diễn đạt lại hoặc kiểm tra TAVILY_API_KEY / knowledge base."
+                    "No internal or web documents found for this question. "
+                    "Try rephrasing or check TAVILY_API_KEY / knowledge base."
                 )
         else:
             summary = strip_references_block(summary)
@@ -122,9 +122,9 @@ async def run_research_worker(task: SubTask, *, chat_history: list[dict] | None 
             task_id=task.id,
             agent=AgentId.RESEARCH_WORKER,
             summary=(
-                "Không thể hoàn tất tìm kiếm. "
-                "Kiểm tra kết nối DB/pgvector (chạy `python scripts/db_migrate.py`) "
-                "và TAVILY_API_KEY cho web search."
+                "Search could not be completed. "
+                "Check DB/pgvector connection (run `python scripts/db_migrate.py`) "
+                "and TAVILY_API_KEY for web search."
             ),
             success=False,
             tools_called=tools_called,

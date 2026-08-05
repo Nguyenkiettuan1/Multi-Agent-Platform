@@ -1,4 +1,4 @@
-"""Resolve API keys — từ os.environ hoặc pydantic Settings (.env)."""
+"""Resolve API keys — from os.environ or pydantic Settings (.env)."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
-# skill.yaml — Config (platform đọc)
+# skill.yaml — Config (read by platform)
 name: my-skill
-description: Mô tả ngắn — dùng cho router và registry
+description: Short description — used by router and registry
 version: "0.1"
 enabled: true
 
@@ -15,5 +15,5 @@ model_tier: T1
 tags: []
 
 settings:
-  # Tùy biến riêng cho skill này
+  # Skill-specific customization
   key: value

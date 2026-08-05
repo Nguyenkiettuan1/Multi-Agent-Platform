@@ -1,4 +1,4 @@
-"""Audit log — ghi vào platform.audit_log."""
+"""Audit log — writes to platform.audit_log."""
 
 from __future__ import annotations
 

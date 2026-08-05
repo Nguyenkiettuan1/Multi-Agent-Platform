@@ -26,7 +26,7 @@ export function useAsync<T>(loader: () => Promise<T>, deps: unknown[] = []): Asy
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Đã xảy ra lỗi')
+          setError(err instanceof Error ? err.message : 'An error occurred')
         }
       })
       .finally(() => {

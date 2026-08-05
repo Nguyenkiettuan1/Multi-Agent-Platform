@@ -59,14 +59,14 @@ def _default_registry() -> dict[AgentId, AgentDefinition]:
         AgentId.GENERAL: AgentDefinition(
             id=AgentId.GENERAL,
             name="General Assistant",
-            description="Q&A, viết, giải thích — như GPT",
+            description="Q&A, writing, explanations — like GPT",
             skills=["general-assistant"],
             model="balanced",
         ),
         AgentId.DB_WORKER: AgentDefinition(
             id=AgentId.DB_WORKER,
             name="DB Worker",
-            description="Truy vấn PostgreSQL read-only",
+            description="Read-only PostgreSQL queries",
             skills=["database-query"],
             tools=["sql-mcp"],
             model="cheap",
@@ -74,7 +74,7 @@ def _default_registry() -> dict[AgentId, AgentDefinition]:
         AgentId.RESEARCH_WORKER: AgentDefinition(
             id=AgentId.RESEARCH_WORKER,
             name="Research Worker",
-            description="Tìm kiếm tài liệu generic",
+            description="Generic document search",
             skills=["document-research"],
             tools=["search-mcp"],
             model="balanced",
@@ -82,7 +82,7 @@ def _default_registry() -> dict[AgentId, AgentDefinition]:
         AgentId.LEGAL_WORKER: AgentDefinition(
             id=AgentId.LEGAL_WORKER,
             name="Legal Domain Agent",
-            description="Domain pháp luật — plug-in",
+            description="Legal domain — plug-in",
             skills=["legal-research"],
             tools=["search-mcp"],
             model="or-claude-sonnet",
@@ -91,7 +91,7 @@ def _default_registry() -> dict[AgentId, AgentDefinition]:
         AgentId.ACTION_WORKER: AgentDefinition(
             id=AgentId.ACTION_WORKER,
             name="Action Worker",
-            description="Gửi thông báo, gọi API",
+            description="Notifications, API calls",
             skills=[],
             tools=["api-mcp"],
             model="fast",

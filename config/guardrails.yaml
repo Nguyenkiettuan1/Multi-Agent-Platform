@@ -5,15 +5,15 @@ input:
   block_patterns:
   - pattern: "(?i)\\b(DROP|DELETE|TRUNCATE|ALTER|INSERT|UPDATE)\\s+(TABLE|FROM|INTO)"
     reason: destructive_sql
-    message: "Yêu cầu thay đổi/xóa dữ liệu không được phép qua DB agent read-only."
+    message: "Data modification/deletion requests are not allowed via the read-only DB agent."
 
   - pattern: "(?i)\\b(xoa|xóa)\\b.*\\b(hop dong|ban ghi|record|du lieu|id)"
     reason: destructive_request
-    message: "Không có quyền xóa dữ liệu. DB agent chỉ read-only."
+    message: "No permission to delete data. The DB agent is read-only."
 
   - pattern: "(?i)\\b(password|api[_-]?key|secret|token)\\s*[:=]\\s*\\S+"
     reason: credential_in_prompt
-    message: "Không gửi credential/secret qua chat."
+    message: "Do not send credentials or secrets via chat."
 
   warn_patterns:
   - pattern: "(?i)\\b(cccd|cmnd|số thẻ|credit card)\\b"

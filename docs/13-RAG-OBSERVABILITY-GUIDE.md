@@ -1,26 +1,26 @@
-# RAG, Azure Search, Audit & Dashboard — Hướng dẫn đầy đủ
+# RAG, Azure Search, Audit & Dashboard — Complete Guide
 
-> Trả lời thẳng: **phần search/RAG đã có code chạy được**, nhưng **ingestion, Azure index, audit, dashboard** mới ở mức nền tảng — doc này giải thích cái gì có, cái gì chưa, và cách setup từng bước.
+> Straight answer: **the search/RAG code is runnable**, but **ingestion, Azure index, audit, and dashboard** are still at a foundational level — this doc explains what exists, what does not, and how to set up each piece step by step.
 
 ---
 
-## 1. Bức tranh tổng thể
+## 1. Big picture
 
 ```mermaid
 flowchart TB
-    subgraph INGEST["Ingestion (ai thêm tài liệu?)"]
-        SEED["scripts/seed_vectors.py<br/>4 doc mẫu"]
-        INGEST_CLI["scripts/ingest_document.py<br/>thêm doc thủ công"]
-        AZ_IDX["scripts/index_azure.py<br/>đẩy PG → Azure"]
-        FUTURE["Upload API / PDF parser<br/>❌ chưa có"]
+    subgraph INGEST["Ingestion (who adds documents?)"]
+        SEED["scripts/seed_vectors.py<br/>4 sample docs"]
+        INGEST_CLI["scripts/ingest_document.py<br/>manual doc add"]
+        AZ_IDX["scripts/index_azure.py<br/>push PG → Azure"]
+        FUTURE["Upload API / PDF parser<br/>❌ not yet"]
     end
 
-    subgraph STORE["Lưu trữ"]
+    subgraph STORE["Storage"]
         PG[(PostgreSQL app.knowledge_documents<br/>pgvector + FTS)]
-        AZ[(Azure AI Search index<br/>tùy chọn)]
+        AZ[(Azure AI Search index<br/>optional)]
     end
 
-    subgraph RUNTIME["Runtime — khi user hỏi"]
+    subgraph RUNTIME["Runtime — when user asks"]
         CHAT["POST /api/v1/chat"]
         TRIAGE["triage.py"]
         RW["research-worker"]
@@ -40,8 +40,8 @@ flowchart TB
     AZ_IDX --> AZ
 
     CHAT --> TRIAGE
-    TRIAGE -->|tim kiem, tai lieu| RW
-    TRIAGE -->|phap luat| LW
+    TRIAGE -->|search, documents| RW
+    TRIAGE -->|legal| LW
     RW --> HYB
     LW --> HYB
     HYB --> AZ
@@ -55,130 +55,130 @@ flowchart TB
 
 ---
 
-## 2. Bảng trạng thái thực tế
+## 2. Actual status table
 
-| Thành phần | Trạng thái | File chính |
-|------------|-----------|------------|
+| Component | Status | Main file |
+|-----------|--------|-----------|
 | pgvector table | ✅ Schema + search | `infra/database/migrations/005_pgvector.sql` |
 | Embeddings | ✅ OpenRouter/OpenAI | `core/search/embeddings.py` |
 | Hybrid search | ✅ Azure → pgvector → FTS | `core/search/hybrid.py` |
-| Azure Search **query** | ✅ Client đọc index | `core/search/azure_search.py` |
-| Azure Search **indexing** | ⚠️ Script thủ công | `scripts/index_azure.py` |
-| Seed 4 doc mẫu | ✅ | `scripts/seed_vectors.py` |
+| Azure Search **query** | ✅ Client reads index | `core/search/azure_search.py` |
+| Azure Search **indexing** | ⚠️ Manual script | `scripts/index_azure.py` |
+| Seed 4 sample docs | ✅ | `scripts/seed_vectors.py` |
 | Ingest CLI | ✅ | `scripts/ingest_document.py` |
 | Upload API / PDF parser | ✅ | `POST /admin/knowledge/upload` |
 | Chunk preview + eval | ✅ | `POST /admin/knowledge/chunk-preview`, `chunk-eval` |
 | Azure Blob indexer | ❌ Doc only | `docs/14-AZURE-BLOB-INDEXER.md` |
-| Audit ghi DB | ✅ Cơ bản | `core/observability/audit.py` |
-| Audit đọc API | ✅ | `GET /api/v1/admin/audit` |
-| Feedback ghi | ✅ POST | `POST /api/v1/feedback` |
-| Feedback đọc API | ✅ | `GET /api/v1/admin/feedback` |
-| Dashboard stats | ✅ Cơ bản | `GET /api/v1/admin/stats` |
-| Ingest qua API | ✅ | `POST /api/v1/admin/knowledge` |
+| Audit write to DB | ✅ Basic | `core/observability/audit.py` |
+| Audit read API | ✅ | `GET /api/v1/admin/audit` |
+| Feedback write | ✅ POST | `POST /api/v1/feedback` |
+| Feedback read API | ✅ | `GET /api/v1/admin/feedback` |
+| Dashboard stats | ✅ Basic | `GET /api/v1/admin/stats` |
+| Ingest via API | ✅ | `POST /api/v1/admin/knowledge` |
 
 ---
 
-## 3. Khi nào agent gọi search?
+## 3. When does the agent call search?
 
-Agent **không tự quyết** gọi Azure hay pgvector. Flow:
+The agent **does not decide on its own** whether to call Azure or pgvector. Flow:
 
 ```
 User message
   → triage (core/control/triage.py)
-  → planner chọn worker
+  → planner selects worker
   → research-worker / legal-worker
-  → hybrid_search()  ← quyết định backend ở đây
+  → hybrid_search()  ← backend decision happens here
 ```
 
-### Triage route sang search khi message chứa:
+### Triage routes to search when the message contains:
 
-| Worker | Từ khóa trigger (không dấu) |
-|--------|----------------------------|
+| Worker | Trigger keywords (no diacritics) |
+|--------|----------------------------------|
 | `research-worker` | `tim kiem`, `tra cuu`, `search`, `tai lieu`, `tim hieu`, `research`, `nguon`, `reference`, `wiki` |
 | `legal-agent` | `phap luat`, `luat`, `nghi dinh`, `dieu khoan`, `tranh chap`, `soan hop dong`, `legal`, `compliance`... |
 
-**Ví dụ:**
+**Examples:**
 - `"Tìm tài liệu về hợp đồng lao động"` → research-worker → hybrid_search
 - `"Phân tích điều khoản thanh toán theo pháp luật"` → legal-agent → hybrid_search(domain="legal")
-- `"Có bao nhiêu hợp đồng active?"` → db-worker → **không** gọi search
+- `"Có bao nhiêu hợp đồng active?"` → db-worker → **does not** call search
 
-### hybrid_search chọn backend thế nào?
+### How does hybrid_search choose a backend?
 
 ```
-1. Có AZURE_SEARCH_*? → azure_search(query)
-2. Chưa đủ? → pgvector → FTS
-3. research/legal worker + có TAVILY_API_KEY? → web_search (Tavily)
+1. AZURE_SEARCH_* configured? → azure_search(query)
+2. Not enough results? → pgvector → FTS
+3. research/legal worker + TAVILY_API_KEY set? → web_search (Tavily)
 ```
 
-**Trích dẫn bắt buộc:** `[D1]` = knowledge, `[W1]` = web. Cuối response có `## Nguồn tham khảo` + field `citations` trong API.
+**Citations are required:** `[D1]` = knowledge, `[W1]` = web. End of response includes `## References` + `citations` field in the API.
 
 ```env
 TAVILY_API_KEY=tvly-...   # https://tavily.com/
 ```
 
-**Khi nào nên bật Azure Search?**
-- Production có tài liệu lớn (PDF, wiki, SharePoint) đã index trên Azure
-- Cần semantic search cloud-scale, không muốn embed hết vào PG
-- Local dev: **chỉ cần pgvector** — Azure là optional
+**When should you enable Azure Search?**
+- Production with large documents (PDF, wiki, SharePoint) already indexed on Azure
+- Need cloud-scale semantic search without embedding everything into PG
+- Local dev: **pgvector only** — Azure is optional
 
 ---
 
-## 4. Vector DB (pgvector) — Ai embed, ai ghi?
+## 4. Vector DB (pgvector) — Who embeds, who writes?
 
-### Bảng: `app.knowledge_documents`
+### Table: `app.knowledge_documents`
 
-| Cột | Mô tả |
-|-----|-------|
-| `doc_id` | ID duy nhất |
-| `title`, `content` | Nội dung tìm kiếm |
+| Column | Description |
+|--------|-------------|
+| `doc_id` | Unique ID |
+| `title`, `content` | Searchable content |
 | `domain` | `general` \| `legal` \| ... |
 | `source` | `seed`, `manual`, `upload`... |
-| `embedding` | vector(1536) — từ `text-embedding-3-small` |
+| `embedding` | vector(1536) — from `text-embedding-3-small` |
 | `tsv` | FTS auto-generated |
 
-### Ai tạo embedding?
+### Who creates embeddings?
 
-| Thời điểm | Ai | Cách |
-|-----------|-----|------|
-| **Ingest** (ghi doc) | `embed_text(title + content)` | `scripts/ingest_document.py` hoặc `seed_vectors.py` |
-| **Search** (đọc) | `embed_text(query)` | `vector_search()` khi user hỏi |
+| When | Who | How |
+|------|-----|-----|
+| **Ingest** (write doc) | `embed_text(title + content)` | `scripts/ingest_document.py` or `seed_vectors.py` |
+| **Search** (read) | `embed_text(query)` | `vector_search()` when user asks |
 
-Provider: cấu hình qua `.env` — `EMBEDDING_PROVIDER` + `EMBEDDING_MODEL`.
+Provider: configured via `.env` — `EMBEDDING_PROVIDER` + `EMBEDDING_MODEL`.
 
-| Provider | Ví dụ model | Key |
-|----------|-------------|-----|
+| Provider | Example model | Key |
+|----------|---------------|-----|
 | `openai` | `text-embedding-ada-002` | `OPENAI_API_KEY` |
 | `openrouter` | `openai/text-embedding-ada-002` | `OPENROUTER_API_KEY` |
 | `azure` | deployment `text-embedding-ada-002` | `AZURE_OPENAI_*` |
 
-**Lưu ý:** `ada-002` và `3-small` đều 1536 dims. Đổi model phải **re-index** toàn bộ documents.
+**Note:** `ada-002` and `3-small` are both 1536 dims. Changing model requires **re-indexing** all documents.
 
-**Không có API key?** Vẫn search được qua FTS/ILIKE, nhưng không có semantic vector.
+**No API key?** Search still works via FTS/ILIKE, but without semantic vectors.
 
-### Cách thêm tài liệu vào pgvector
+### How to add documents to pgvector
 
 ```powershell
-# 1. Cần API key cho embedding
+# 1. API key required for embedding
 # .env: OPENROUTER_API_KEY=sk-or-v1-...
 
-# 2. Seed 4 doc mẫu
+# 2. Seed 4 sample docs
 python scripts/seed_vectors.py
 
-# 3. Thêm doc thủ công
+# 3. Add doc manually
 python scripts/ingest_document.py `
   --doc-id "policy-2024" `
   --title "Chính sách bảo mật" `
   --content "Nội dung đầy đủ..." `
   --domain general
 
-# 4. Hoặc qua API (cần API_KEY nếu đã bật auth)
+# 4. Or via API (requires API_KEY if auth is enabled)
 curl -X POST http://localhost:8000/api/v1/admin/knowledge `
   -H "Content-Type: application/json" `
   -H "X-API-Key: your-key" `
   -d "{\"doc_id\":\"policy-2024\",\"title\":\"...\",\"content\":\"...\",\"domain\":\"general\"}"
 ```
 
-**Lưu ý quyền DB:** Script ingest dùng `MIGRATE_DATABASE_URL` (user `phanlaw`). Runtime search dùng `DATABASE_URL` (user `agent_reader`, read-only) — đúng thiết kế bảo mật.
+**DB permissions note:** Ingest scripts use `MIGRATE_DATABASE_URL` (user `multiagent`). Runtime search uses `DATABASE_URL` (user `agent_reader`, read-only) — correct security design.
 
 ### Verify
 
@@ -191,17 +191,17 @@ FROM app.knowledge_documents;
 
 ---
 
-## 5. Azure AI Search — Setup từ đầu
+## 5. Azure AI Search — Setup from scratch
 
-### Bước 1: Tạo Azure AI Search resource
+### Step 1: Create Azure AI Search resource
 
 1. Azure Portal → Create **Azure AI Search**
-2. Chọn tier: **Free** (dev) hoặc **Basic** (prod)
-3. Lấy **URL** (endpoint) và **Admin API Key**
+2. Choose tier: **Free** (dev) or **Basic** (prod)
+3. Get **URL** (endpoint) and **Admin API Key**
 
-### Bước 2: Tạo index
+### Step 2: Create index
 
-Index cần các field sau (khớp code trong `azure_search.py`):
+The index needs these fields (matching code in `azure_search.py`):
 
 ```json
 {
@@ -217,11 +217,11 @@ Index cần các field sau (khớp code trong `azure_search.py`):
 }
 ```
 
-Tạo qua Azure Portal (Indexes → Add index) hoặc REST API.
+Create via Azure Portal (Indexes → Add index) or REST API.
 
-> **Vector search trên Azure:** Code hiện tại dùng **keyword search** (`search_text=query`). Nếu cần vector trên Azure, phải thêm field `contentVector` + skillset — chưa implement, dùng pgvector cho semantic local.
+> **Vector search on Azure:** Current code uses **keyword search** (`search_text=query`). For vector search on Azure, add a `contentVector` field + skillset — not implemented yet; use pgvector for local semantic search.
 
-### Bước 3: Điền `.env`
+### Step 3: Fill in `.env`
 
 ```env
 AZURE_SEARCH_ENDPOINT=https://YOUR-SEARCH.search.windows.net
@@ -229,16 +229,16 @@ AZURE_SEARCH_API_KEY=your-admin-key
 AZURE_SEARCH_INDEX_NAME=knowledge-index
 ```
 
-### Bước 4: Đẩy tài liệu lên Azure
+### Step 4: Push documents to Azure
 
-**Cách A — từ PostgreSQL (đã có trong PG):**
+**Method A — from PostgreSQL (already in PG):**
 
 ```powershell
 python scripts/index_azure.py
-# Đọc app.knowledge_documents → upload lên Azure index
+# Reads app.knowledge_documents → uploads to Azure index
 ```
 
-**Cách B — thủ công qua Azure Portal:**
+**Method B — manually via Azure Portal:**
 
 Indexes → knowledge-index → Import data → JSON:
 
@@ -253,22 +253,22 @@ Indexes → knowledge-index → Import data → JSON:
 }
 ```
 
-**Cách C — Azure Blob + Indexer (production):**
+**Method C — Azure Blob + Indexer (production):**
 
-1. Upload file lên Blob Storage
-2. Tạo Data Source → Indexer → Skillset (chunking)
-3. Indexer tự sync — **chưa có trong repo**, cần setup trên Azure Portal
+1. Upload file to Blob Storage
+2. Create Data Source → Indexer → Skillset (chunking)
+3. Indexer auto-syncs — **not in repo**, set up on Azure Portal
 
-### Bước 5: Test
+### Step 5: Test
 
 ```powershell
-# Message trigger research
+# Message that triggers research
 curl -X POST http://localhost:8000/api/v1/chat `
   -H "Content-Type: application/json" `
   -d "{\"message\": \"Tìm tài liệu về hợp đồng lao động\"}"
 ```
 
-Trong response, xem `worker_results[].tools_called` — nếu có `"azure_search"` là Azure đã được gọi.
+In the response, check `worker_results[].tools_called` — if `"azure_search"` appears, Azure was called.
 
 ---
 
@@ -276,28 +276,28 @@ Trong response, xem `worker_results[].tools_called` — nếu có `"azure_search
 
 ### Schema: `platform.audit_log`
 
-| Cột | Mô tả |
-|-----|-------|
-| `trace_id` | ID mỗi request chat |
+| Column | Description |
+|--------|-------------|
+| `trace_id` | ID per chat request |
 | `session_id`, `user_id` | Session/user |
-| `agent_name` | Worker hoặc `gateway` |
+| `agent_name` | Worker or `gateway` |
 | `action` | `chat_start`, `chat_complete`, `chat_error`... |
 | `payload` | JSON metadata |
-| `sql_executed` | SQL nếu db-worker chạy |
+| `sql_executed` | SQL if db-worker ran |
 
-### Ghi ở đâu?
+### Where is it written?
 
-- `workflows/runner.py` — ghi `chat_start` / `chat_complete` / `chat_error`
-- Tương lai: db-worker ghi `sql_executed`, từng agent ghi action riêng
+- `workflows/runner.py` — writes `chat_start` / `chat_complete` / `chat_error`
+- Future: db-worker writes `sql_executed`, each agent writes its own action
 
-### Đọc qua API
+### Read via API
 
 ```powershell
 curl http://localhost:8000/api/v1/admin/audit?limit=20 `
   -H "X-API-Key: your-key"
 ```
 
-Hoặc pgAdmin:
+Or pgAdmin:
 
 ```sql
 SELECT trace_id, agent_name, action, created_at
@@ -310,34 +310,34 @@ LIMIT 20;
 
 ## 7. Dashboard endpoints
 
-Tất cả dưới `/api/v1/admin/*` — yêu cầu `X-API-Key` nếu `API_KEY` đã set trong `.env`.
+All under `/api/v1/admin/*` — require `X-API-Key` if `API_KEY` is set in `.env`.
 
-| Endpoint | Method | Mô tả |
-|----------|--------|-------|
-| `/api/v1/admin/stats` | GET | Tổng quan: docs, feedback, audit, sessions |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/admin/stats` | GET | Overview: docs, feedback, audit, sessions |
 | `/api/v1/admin/audit` | GET | Audit log (`?limit=50&trace_id=...`) |
 | `/api/v1/admin/feedback` | GET | Feedback (`?limit=50`) |
-| `/api/v1/admin/knowledge` | GET | List knowledge docs (không trả embedding) |
-| `/api/v1/admin/knowledge` | POST | Ingest doc mới |
+| `/api/v1/admin/knowledge` | GET | List knowledge docs (no embedding returned) |
+| `/api/v1/admin/knowledge` | POST | Ingest new doc |
 | `/health` | GET | Health check (public) |
 | `/api/v1/models` | GET | Model routing info |
-| `/api/v1/chat` | POST | Chat chính |
-| `/api/v1/feedback` | POST | User gửi rating |
+| `/api/v1/chat` | POST | Main chat |
+| `/api/v1/feedback` | POST | User submits rating |
 
-**Chưa có:** UI dashboard, Prometheus metrics, Langfuse tracing, session replay.
+**Not yet available:** UI dashboard, Prometheus metrics, Langfuse tracing, session replay.
 
 ---
 
 ## 8. Feedback
 
 ```powershell
-# Sau khi chat, lấy trace_id từ response
+# After chat, get trace_id from response
 curl -X POST http://localhost:8000/api/v1/feedback `
   -H "Content-Type: application/json" `
   -d "{\"trace_id\": \"abc123...\", \"rating\": 5, \"comment\": \"Hay\"}"
 ```
 
-Lưu vào `platform.feedback` + in-memory. Đọc lại:
+Saved to `platform.feedback` + in-memory. Read back:
 
 ```powershell
 curl http://localhost:8000/api/v1/admin/feedback?limit=10
@@ -345,112 +345,112 @@ curl http://localhost:8000/api/v1/admin/feedback?limit=10
 
 ---
 
-## 9. Checklist setup theo môi trường
+## 9. Environment setup checklist
 
-### Local dev (tối thiểu)
+### Local dev (minimum)
 
 ```powershell
 docker compose up -d
 copy .env.example .env
-# Thêm OPENROUTER_API_KEY
+# Add OPENROUTER_API_KEY
 python scripts/db_migrate.py
 python scripts/seed.py
 python scripts/seed_vectors.py
 python -m gateway.main
 ```
 
-→ pgvector + FTS, không cần Azure.
+→ pgvector + FTS, no Azure needed.
 
 ### Local + Azure Search
 
-Thêm vào checklist:
-1. Tạo Azure Search resource + index (mục 5)
-2. Điền `AZURE_SEARCH_*` trong `.env`
+Add to checklist:
+1. Create Azure Search resource + index (section 5)
+2. Fill in `AZURE_SEARCH_*` in `.env`
 3. `python scripts/index_azure.py`
-4. Test chat với keyword `tìm tài liệu`
+4. Test chat with keyword `tìm tài liệu`
 
-### Production (đề xuất)
+### Production (recommended)
 
-| Layer | Khuyến nghị |
-|-------|-------------|
-| Tài liệu lớn | Azure Blob + Indexer → Azure Search |
-| Tài liệu nội bộ nhỏ | pgvector trong Azure PostgreSQL |
-| Embeddings | Azure OpenAI `text-embedding-3-small` (chưa wire — dùng OpenRouter tạm) |
-| Audit | Bật `PLATFORM_DATABASE_URL`, monitor qua admin API |
-| Auth | Set `API_KEY` production |
+| Layer | Recommendation |
+|-------|----------------|
+| Large documents | Azure Blob + Indexer → Azure Search |
+| Small internal docs | pgvector in Azure PostgreSQL |
+| Embeddings | Azure OpenAI `text-embedding-3-small` (not wired yet — use OpenRouter temporarily) |
+| Audit | Enable `PLATFORM_DATABASE_URL`, monitor via admin API |
+| Auth | Set `API_KEY` in production |
 
 ---
 
-## 12. Query embedding — ở đâu, khi nào gọi?
+## 12. Query embedding — where and when is it called?
 
-**Có rồi** — nhưng nằm sâu trong call chain, dễ bỏ qua:
+**Already implemented** — but deep in the call chain, easy to miss:
 
 ```
 hybrid_search(query)
   → vector_search(query)          # core/search/pgvector_store.py
-      → embed_query(query)        # core/search/embeddings.py  ← EMBED QUERY Ở ĐÂY
+      → embed_query(query)        # core/search/embeddings.py  ← EMBED QUERY HERE
       → SQL: ORDER BY embedding <=> :query_vec
 ```
 
-| Thời điểm | Hàm | Input |
-|-----------|-----|-------|
-| **Ingest** (ghi doc) | `embed_text(title + content)` | Nội dung chunk |
-| **Search** (user hỏi) | `embed_query(query)` | Câu hỏi user |
+| When | Function | Input |
+|------|----------|-------|
+| **Ingest** (write doc) | `embed_text(title + content)` | Chunk content |
+| **Search** (user asks) | `embed_query(query)` | User question |
 
-Log khi chạy API (LOG_LEVEL=INFO):
+Log when running API (LOG_LEVEL=INFO):
 ```
 INFO Embedded query: model=openai/text-embedding-3-small dims=1536 chars=42
 ```
 
-Nếu không có API key → `vector_search` fallback sang FTS, không embed query.
+If no API key → `vector_search` falls back to FTS, does not embed query.
 
 ---
 
-## 13. Chunking — upload file & kiểm tra chất lượng
+## 13. Chunking — file upload & quality checks
 
-### Flow ingest file
+### File ingest flow
 
 ```
 Upload PDF/DOCX/TXT
   → parse_file()           # core/search/parsers.py
   → chunk_text()           # core/search/chunking.py
   → analyze_chunks()       # quality score + warnings
-  → embed_text() mỗi chunk
+  → embed_text() per chunk
   → upsert_document()      # doc_id = parent__chunk_0000
 ```
 
-Config mặc định (`.env`):
+Default config (`.env`):
 ```env
 CHUNK_SIZE=800        # ~200 tokens
-CHUNK_OVERLAP=120     # overlap giữa chunks liền kề
+CHUNK_OVERLAP=120     # overlap between adjacent chunks
 ```
 
-### Bước 1 — Preview chunks (không ghi DB)
+### Step 1 — Preview chunks (no DB write)
 
 ```powershell
 python scripts/ingest_file.py docs/sample.pdf --preview
 
-# Hoặc API:
+# Or API:
 curl -X POST http://localhost:8000/api/v1/admin/knowledge/upload `
   -F "file=@sample.pdf" `
   -F "preview_only=true"
 ```
 
-Response gồm:
+Response includes:
 - `analysis.quality_score` (0–1)
-- `analysis.warnings` — chunk quá ngắn/dài, chênh lệch...
-- `chunks[].preview` — xem từng chunk
+- `analysis.warnings` — chunk too short/long, variance...
+- `chunks[].preview` — view each chunk
 
-### Bước 2 — Đánh giá chunk với query mẫu
+### Step 2 — Evaluate chunks with sample query
 
-**Quan trọng:** Trước khi ingest production, test với câu hỏi thực tế user sẽ hỏi.
+**Important:** Before production ingest, test with real questions users will ask.
 
 ```powershell
 python scripts/ingest_file.py docs/sample.pdf --preview `
   --eval-query "điều khoản thanh toán hợp đồng"
 ```
 
-Hoặc API:
+Or API:
 ```powershell
 curl -X POST http://localhost:8000/api/v1/admin/knowledge/chunk-eval `
   -H "Content-Type: application/json" `
@@ -458,68 +458,68 @@ curl -X POST http://localhost:8000/api/v1/admin/knowledge/chunk-eval `
 ```
 
 Response:
-- `rankings` — chunk nào score cao nhất với query
-- `recommendation` — gợi ý chỉnh chunk_size/overlap
+- `rankings` — which chunks score highest for the query
+- `recommendation` — suggestions to adjust chunk_size/overlap
 
-**Cách đọc kết quả:**
+**How to read results:**
 
-| Dấu hiệu | Ý nghĩa | Hành động |
-|----------|---------|-----------|
-| Top score < 0.5 | Chunk không khớp query | Giảm `CHUNK_SIZE`, tăng overlap |
-| Nhiều chunk score gần nhau | Overlap quá nhiều / chunk giống nhau | Giảm `CHUNK_OVERLAP` |
-| `warnings: quá ngắn` | Chunk mất ngữ cảnh | Tăng `CHUNK_SIZE` |
-| `warnings: 1 chunk` | File dài nhưng không split | Giảm `CHUNK_SIZE` |
+| Signal | Meaning | Action |
+|--------|---------|--------|
+| Top score < 0.5 | Chunks don't match query | Decrease `CHUNK_SIZE`, increase overlap |
+| Many chunks with similar scores | Too much overlap / duplicate chunks | Decrease `CHUNK_OVERLAP` |
+| `warnings: too short` | Chunk loses context | Increase `CHUNK_SIZE` |
+| `warnings: 1 chunk` | Long file but no split | Decrease `CHUNK_SIZE` |
 
-### Bước 3 — Ingest thật
+### Step 3 — Actual ingest
 
 ```powershell
 python scripts/ingest_file.py docs/sample.pdf --domain legal
 
-# Hoặc upload API:
+# Or upload API:
 curl -X POST http://localhost:8000/api/v1/admin/knowledge/upload `
   -F "file=@sample.pdf" `
   -F "domain=legal"
 ```
 
-Xem chunks đã lưu:
+View saved chunks:
 ```powershell
 curl http://localhost:8000/api/v1/admin/knowledge/my-doc/chunks
 ```
 
-### Migration cần chạy
+### Required migration
 
 ```powershell
-python scripts/db_migrate.py   # thêm migration 007 (parent_doc_id, chunk_index)
+python scripts/db_migrate.py   # adds migration 007 (parent_doc_id, chunk_index)
 ```
 
 ---
 
-## 14. Roadmap — còn thiếu gì?
+## 14. Roadmap — what's still missing?
 
-| Ưu tiên | Task | Trạng thái |
-|---------|------|------------|
+| Priority | Task | Status |
+|----------|------|--------|
 | P1 | Upload PDF/DOCX + chunking | ✅ Done |
 | P1 | Chunk quality preview/eval | ✅ Done |
 | P1 | LLM-as-judge + reranker | ✅ Done |
-| P1 | Azure Blob indexer tự động | 📄 Doc: `14-AZURE-BLOB-INDEXER.md` |
+| P1 | Azure Blob auto indexer | 📄 Doc: `14-AZURE-BLOB-INDEXER.md` |
 | P2 | RRF hybrid fusion (parallel retrievers) | ✅ `core/search/fusion.py`, `hybrid.py` |
 | P2 | Langfuse tracing (optional) | ✅ `LANGFUSE_TRACING_ENABLED=true` |
 | P2 | Admin overview API | ✅ `GET /api/v1/admin/overview` |
-| P2 | Vector search trên Azure | ❌ |
+| P2 | Vector search on Azure | ❌ |
 | P2 | Dashboard UI (React) | ❌ |
 
 ---
 
-## 15. FAQ (bổ sung)
+## 15. FAQ (supplement)
 
-**Q: Tôi không thấy chỗ embed query?**
-→ `core/search/pgvector_store.py` → `vector_search()` → `embed_query()`. Bật `LOG_LEVEL=INFO` để thấy log.
+**Q: I don't see where query embedding happens?**
+→ `core/search/pgvector_store.py` → `vector_search()` → `embed_query()`. Set `LOG_LEVEL=INFO` to see logs.
 
-**Q: Chunking có hợp lý không — làm sao biết?**
-→ Dùng `--preview` + `--eval-query` hoặc `POST /chunk-eval` trước khi ingest.
+**Q: Is chunking reasonable — how do I know?**
+→ Use `--preview` + `--eval-query` or `POST /chunk-eval` before ingest.
 
-**Q: Mỗi chunk có embedding riêng?**
-→ Đúng. Mỗi chunk = 1 row trong `knowledge_documents`, mỗi row 1 vector.
+**Q: Does each chunk have its own embedding?**
+→ Yes. Each chunk = 1 row in `knowledge_documents`, each row has 1 vector.
 
 **Q: Azure Blob indexer?**
-→ Xem `docs/14-AZURE-BLOB-INDEXER.md` — setup trên Azure Portal, không chạy trong code local.
+→ See `docs/14-AZURE-BLOB-INDEXER.md` — set up on Azure Portal, does not run in local code.

@@ -51,7 +51,7 @@ def preview_document(
 
 
 async def evaluate_chunks_for_query(chunks: list[TextChunk], query: str) -> list[dict]:
-    """Dry-run: embed query và score từng chunk — kiểm tra chunking có retrieve đúng không."""
+    """Dry-run: embed query and score each chunk — verify chunking retrieves correctly."""
     query_vec = await embed_query(query)
     if query_vec is None:
         return [{"index": c.index, "score": None, "note": "no embedding API key"} for c in chunks]

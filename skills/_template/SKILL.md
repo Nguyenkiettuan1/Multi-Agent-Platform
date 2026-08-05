@@ -1,12 +1,12 @@
 # My Skill Name
 
-## Quy tắc
+## Rules
 
 1. Rule 1 — actionable, specific
 2. Rule 2
 3. Rule 3
 
-## Ví dụ
+## Examples
 
 ### Input
 ```

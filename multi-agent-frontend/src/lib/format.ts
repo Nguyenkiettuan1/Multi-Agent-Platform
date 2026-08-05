@@ -2,7 +2,7 @@ export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—'
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return date.toLocaleString('vi-VN', {
+  return date.toLocaleString('en-US', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -18,13 +18,13 @@ export function formatRelativeTime(iso: string | null | undefined): string {
 
   const diffMs = Date.now() - date.getTime()
   const diffSec = Math.floor(diffMs / 1000)
-  if (diffSec < 60) return 'Vừa xong'
+  if (diffSec < 60) return 'Just now'
   const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `${diffMin} phút trước`
+  if (diffMin < 60) return `${diffMin} min ago`
   const diffHour = Math.floor(diffMin / 60)
-  if (diffHour < 24) return `${diffHour} giờ trước`
+  if (diffHour < 24) return `${diffHour} hr ago`
   const diffDay = Math.floor(diffHour / 24)
-  return `${diffDay} ngày trước`
+  return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`
 }
 
 export function formatCount(value: number | undefined | null): string {

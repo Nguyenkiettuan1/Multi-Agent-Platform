@@ -1,70 +1,70 @@
-# Vấn đề còn lại & Backlog kỹ thuật
+# Remaining Issues & Technical Backlog
 
-> Cập nhật: v0.3.0 — sau đợt review code + P2 (RRF, Langfuse, feedback promotion).
-> Dùng file này để lên kế hoạch sprint, không phải danh sách bug blocking local dev.
+> Updated: v0.3.0 — after code review + P2 (RRF, Langfuse, feedback promotion).
+> Use this file for sprint planning, not as a list of bugs blocking local dev.
 
 ---
 
-## Tóm tắt nhanh
+## Quick summary
 
-| Mức | Số hạng mục | Ý nghĩa |
-|-----|-------------|---------|
-| **P0** | 3 | Ảnh hưởng production / scale trực tiếp |
-| **P1** | 5 | Maintainability, kiến trúc |
-| **P2** | 6 | Test, observability, feature gap |
+| Level | Count | Meaning |
+|-------|-------|---------|
+| **P0** | 3 | Direct production / scale impact |
+| **P1** | 5 | Maintainability, architecture |
+| **P2** | 6 | Tests, observability, feature gaps |
 | **P3** | 4 | Nice-to-have, cloud, UI |
 
-**Điểm chất lượng hiện tại:** ~7.5/10 — MVP enterprise-ready, chưa high-traffic production.
+**Current quality score:** ~7.5/10 — MVP enterprise-ready, not yet high-traffic production.
 
 ---
 
 ## P0 — Production & scale
 
-### 1. Sync DB trong async handlers (blocking event loop)
+### 1. Sync DB in async handlers (blocking event loop)
 
-**Vấn đề:** FastAPI `async def` routes và một số workflow path gọi `engine.connect()` đồng bộ → block event loop khi concurrent cao.
+**Issue:** FastAPI `async def` routes and some workflow paths call synchronous `engine.connect()` → blocks event loop under high concurrency.
 
-**Vị trí:** `gateway/main.py`, `core/observability/audit.py`, `core/intelligence/feedback_store.py`, workers.
+**Location:** `gateway/main.py`, `core/observability/audit.py`, `core/intelligence/feedback_store.py`, workers.
 
-**Hướng xử lý:**
-- Ngắn hạn: `asyncio.to_thread()` cho mọi DB call trong async route
-- Dài hạn: SQLAlchemy async engine hoặc `asyncpg`
+**Approach:**
+- Short term: `asyncio.to_thread()` for all DB calls in async routes
+- Long term: SQLAlchemy async engine or `asyncpg`
 
 ---
 
 ### 2. Dual storage feedback (in-memory vs PostgreSQL)
 
-**Vấn đề:** `core/intelligence/feedback.py` (dict in-memory) và `feedback_store.py` (DB) có thể lệch khi chạy multi-worker uvicorn.
+**Issue:** `core/intelligence/feedback.py` (in-memory dict) and `feedback_store.py` (DB) can diverge when running multi-worker uvicorn.
 
-**Hướng xử lý:**
-- Production: bắt buộc `PLATFORM_DATABASE_URL`, tắt in-memory fallback
-- Hoặc Redis cache thay in-memory
-
----
-
-### 3. Connection pool chưa tune
-
-**Vấn đề:** `core/database/engines.py` đã centralize engine nhưng chưa cấu hình `pool_size`, `pool_pre_ping`, `max_overflow`.
-
-**Hướng xử lý:** Thêm settings `DB_POOL_SIZE`, `DB_POOL_PRE_PING=true` và health check DB trong `/health`.
+**Approach:**
+- Production: require `PLATFORM_DATABASE_URL`, disable in-memory fallback
+- Or Redis cache instead of in-memory
 
 ---
 
-## P1 — Kiến trúc & maintainability
+### 3. Connection pool not tuned
 
-### 4. Layering violation: `core/` import `workflows.state`
+**Issue:** `core/database/engines.py` centralizes engine but lacks `pool_size`, `pool_pre_ping`, `max_overflow` configuration.
 
-**Vấn đề:** `AgentId`, `TriageResult`, `IntentType` nằm trong `workflows/state.py` nhưng được dùng bởi `core/control`, `core/llm`.
-
-**Hướng xử lý:** Di chuyển sang `core/domain/state.py` hoặc `core/models/`.
+**Approach:** Add settings `DB_POOL_SIZE`, `DB_POOL_PRE_PING=true` and DB health check in `/health`.
 
 ---
 
-### 5. Gateway monolithic (`gateway/main.py` ~410 dòng)
+## P1 — Architecture & maintainability
 
-**Vấn đề:** Một file chứa chat, admin, knowledge, feedback, schemas.
+### 4. Layering violation: `core/` imports `workflows.state`
 
-**Hướng xử lý:**
+**Issue:** `AgentId`, `TriageResult`, `IntentType` live in `workflows/state.py` but are used by `core/control`, `core/llm`.
+
+**Approach:** Move to `core/domain/state.py` or `core/models/`.
+
+---
+
+### 5. Gateway monolithic (`gateway/main.py` ~410 lines)
+
+**Issue:** One file contains chat, admin, knowledge, feedback, schemas.
+
+**Approach:**
 ```
 gateway/
   main.py
@@ -74,82 +74,82 @@ gateway/
 
 ---
 
-### 6. Lazy imports trong route handlers
+### 6. Lazy imports in route handlers
 
-**Vấn đề:** `from core... import` bên trong mỗi handler — khó test, khó trace dependency.
+**Issue:** `from core... import` inside each handler — hard to test, hard to trace dependencies.
 
-**Hướng xử lý:** Import top-level hoặc dependency injection FastAPI.
+**Approach:** Top-level imports or FastAPI dependency injection.
 
 ---
 
 ### 7. Dead / stub code
 
-| Item | Trạng thái |
-|------|------------|
-| `agents/db-agent/agent.py`, `agents/orchestrator/agent.py` | Foundry stub, chưa wired LangGraph |
-| `platform/registry/` | Thư mục trống |
-| `AgentId.CODE_WORKER` | Enum có, handler không |
+| Item | Status |
+|------|--------|
+| `agents/db-agent/agent.py`, `agents/orchestrator/agent.py` | Foundry stub, not wired to LangGraph |
+| `platform/registry/` | Empty directory |
+| `AgentId.CODE_WORKER` | Enum exists, no handler |
 
-**Hướng xử lý:** Xóa hoặc document rõ "planned"; tránh nhầm là đã implement.
+**Approach:** Delete or clearly document as "planned"; avoid confusion that it's implemented.
 
 ---
 
-### 8. Registry trùng nguồn
+### 8. Duplicate registry sources
 
-**Vấn đề:** `agents/registry.yaml` và `_default_registry()` trong `core/registry/agents.py` có thể lệch.
+**Issue:** `agents/registry.yaml` and `_default_registry()` in `core/registry/agents.py` can diverge.
 
-**Hướng xử lý:** YAML là single source of truth; bỏ hardcoded default hoặc generate từ YAML.
+**Approach:** YAML is single source of truth; remove hardcoded default or generate from YAML.
 
 ---
 
 ## P2 — Test & observability
 
-### 9. Thiếu integration / API tests
+### 9. Missing integration / API tests
 
-| Chưa có test | Rủi ro |
-|--------------|--------|
-| `POST /api/v1/chat` | Regression chat flow |
-| Auth `X-API-Key` | Lỗ hổng bảo mật |
+| No test yet | Risk |
+|-------------|------|
+| `POST /api/v1/chat` | Chat flow regression |
+| Auth `X-API-Key` | Security vulnerability |
 | Admin routes | Break admin UI |
-| Workflow routing (fast vs full pipeline) | Bug routing ẩn |
-| `parsers.py` PDF/DOCX | Upload fail production |
+| Workflow routing (fast vs full pipeline) | Hidden routing bugs |
+| `parsers.py` PDF/DOCX | Upload fail in production |
 | MCP servers | Tool contract break |
 
-**Hiện tại:** 48 unit tests pass — tốt cho core logic, chưa đủ cho E2E.
+**Current:** 48 unit tests pass — good for core logic, not enough for E2E.
 
 ---
 
-### 10. Không có Dockerfile / containerize app
+### 10. No Dockerfile / containerized app
 
-**Vấn đề:** `docker-compose.yml` chỉ có Postgres, Redis, pgAdmin — chưa có image cho API gateway.
+**Issue:** `docker-compose.yml` only has Postgres, Redis, pgAdmin — no image for API gateway.
 
-**Hướng xử lý:** `Dockerfile` multi-stage + `docker compose` service `api`.
+**Approach:** Multi-stage `Dockerfile` + `docker compose` service `api`.
 
 ---
 
 ### 11. Metrics & alerting
 
-**Vấn đề:** Langfuse tracing optional; chưa có Prometheus `/metrics`, chưa alert P95 latency.
+**Issue:** Langfuse tracing optional; no Prometheus `/metrics`, no P95 latency alerts.
 
 ---
 
 ### 12. Rate limiting & request size
 
-**Vấn đề:** Chưa rate limit per user/IP; upload file chưa giới hạn size rõ trong gateway.
+**Issue:** No rate limit per user/IP; file upload size not clearly limited in gateway.
 
 ---
 
 ### 13. Streaming chat response
 
-**Vấn đề:** `POST /chat` trả full response một lần — UX chat chậm khi response dài.
+**Issue:** `POST /chat` returns full response at once — slow UX for long responses.
 
-**Hướng xử lý:** SSE/WebSocket streaming từ LangGraph (P2 frontend).
+**Approach:** SSE/WebSocket streaming from LangGraph (P2 frontend).
 
 ---
 
-### 14. Azure vector search thật
+### 14. Real Azure vector search
 
-**Vấn đề:** Azure Search index có script manual (`scripts/index_azure.py`); chưa vector search native trên Azure.
+**Issue:** Azure Search index has manual script (`scripts/index_azure.py`); no native vector search on Azure yet.
 
 ---
 
@@ -157,63 +157,63 @@ gateway/
 
 ### 15. Dashboard UI (React)
 
-**Trạng thái:** Backend API sẵn (`/admin/overview`, stats, audit, knowledge) — **chưa có frontend**.
+**Status:** Backend API ready (`/admin/overview`, stats, audit, knowledge) — **no frontend yet**.
 
-→ Xem brief cho team: [`FRONTEND-DESIGN-BRIEF.md`](./FRONTEND-DESIGN-BRIEF.md)
+→ See team brief: [`FRONTEND-DESIGN-BRIEF.md`](./FRONTEND-DESIGN-BRIEF.md)
 
 ---
 
 ### 16. Entra ID / OAuth2
 
-**Trạng thái:** Chỉ `X-API-Key` (optional local). Production cần Entra ID.
+**Status:** Only `X-API-Key` (optional local). Production needs Entra ID.
 
 ---
 
 ### 17. Background job queue
 
-**Vấn đề:** Ingest file, embed, promote RAG chạy sync trong request — timeout khi file lớn.
+**Issue:** File ingest, embed, promote RAG run synchronously in request — timeout on large files.
 
-**Hướng xử lý:** Celery / ARQ / Azure Service Bus.
-
----
-
-### 18. Azure Blob indexer tự động
-
-**Trạng thái:** Doc only — [`14-AZURE-BLOB-INDEXER.md`](./14-AZURE-BLOB-INDEXER.md)
+**Approach:** Celery / ARQ / Azure Service Bus.
 
 ---
 
-## Đã xử lý (không cần làm lại)
+### 18. Azure Blob auto indexer
 
-| Item | Giải pháp |
-|------|-----------|
-| `create_engine()` lặp 10+ chỗ | `core/database/engines.py` |
-| `admin/stats` trùng `overview` | Delegate sang `build_admin_overview()` |
-| Version lệch 0.2.0 / 0.3.0 | `config/version.py` |
-| SQL inline list knowledge | `pgvector_store.list_documents()` |
-| Test hybrid trùng 2 file | Gộp vào `test_search.py` |
+**Status:** Doc only — [`14-AZURE-BLOB-INDEXER.md`](./14-AZURE-BLOB-INDEXER.md)
+
+---
+
+## Already resolved (no need to redo)
+
+| Item | Solution |
+|------|----------|
+| `create_engine()` repeated 10+ places | `core/database/engines.py` |
+| `admin/stats` duplicates `overview` | Delegate to `build_admin_overview()` |
+| Version mismatch 0.2.0 / 0.3.0 | `config/version.py` |
+| Inline SQL list knowledge | `pgvector_store.list_documents()` |
+| Duplicate hybrid tests in 2 files | Merged into `test_search.py` |
 | RRF hybrid search | `fusion.py` + parallel `hybrid.py` |
 | Langfuse tracing | `tracing.py` + wire LLM/workflow |
 | Feedback → RAG promotion | Migration 009 + `knowledge_promotion.py` |
-| `.gitignore` / `.dockerignore` | Bổ sung env, cache, data exports |
+| `.gitignore` / `.dockerignore` | Added env, cache, data exports |
 
 ---
 
-## Gợi ý thứ tự sprint
+## Suggested sprint order
 
 | Sprint | Focus |
 |--------|-------|
 | **S1** | Gateway routers + API tests + async DB wrapper |
-| **S2** | Frontend MVP (chat + admin overview) — theo FRONTEND brief |
+| **S2** | Frontend MVP (chat + admin overview) — per FRONTEND brief |
 | **S3** | Dockerfile + feedback DB-only mode + health check DB |
 | **S4** | Streaming chat + rate limit + metrics |
 | **S5** | Entra ID + background ingest queue |
 
 ---
 
-## Liên hệ tài liệu liên quan
+## Related documentation
 
-- Setup local: [`12-LOCAL-SETUP.md`](./12-LOCAL-SETUP.md)
+- Local setup: [`12-LOCAL-SETUP.md`](./12-LOCAL-SETUP.md)
 - RAG & observability: [`13-RAG-OBSERVABILITY-GUIDE.md`](./13-RAG-OBSERVABILITY-GUIDE.md)
 - Feedback loop: [`15-FEEDBACK-LOOP.md`](./15-FEEDBACK-LOOP.md)
 - Frontend design brief: [`FRONTEND-DESIGN-BRIEF.md`](./FRONTEND-DESIGN-BRIEF.md)

@@ -40,10 +40,9 @@ export function ModelsPage() {
     <div className="p-margin-page">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="mb-2 text-display-lg text-primary">Danh mục Model &amp; Agent</h1>
+          <h1 className="mb-2 text-display-lg text-primary">Model &amp; Agent Catalog</h1>
           <p className="text-body-lg text-on-surface-variant">
-            Quản lý và theo dõi cấu hình các mô hình ngôn ngữ lớn (LLM) và sự phân bổ của chúng cho các Agent hệ thống.
-            Chế độ chỉ xem.
+            Manage and monitor LLM configuration and how models are assigned to system agents. Read-only mode.
           </p>
         </div>
         <button
@@ -53,7 +52,7 @@ export function ModelsPage() {
           className="flex items-center gap-2 rounded-lg border border-border-subtle px-4 py-2 text-sm font-medium hover:bg-surface-container-high disabled:opacity-50"
         >
           <MaterialIcon name="refresh" size={18} className={loading ? 'animate-spin' : ''} />
-          Làm mới
+          Refresh
         </button>
       </div>
 
@@ -74,12 +73,12 @@ export function ModelsPage() {
           </div>
           <div>
             <h3 className="text-headline-sm text-on-surface">
-              Trạng thái API Hệ thống: {data?.llm_enabled ? 'Ổn định' : 'Chưa cấu hình LLM'}
+              System API Status: {data?.llm_enabled ? 'Healthy' : 'LLM not configured'}
             </h3>
             <p className="text-body-md text-on-surface-variant">
               {data?.llm_enabled
-                ? `${catalog.length} model trong catalog · ${agents.length} agent`
-                : 'Cần cấu hình OPENROUTER_API_KEY hoặc OPENAI_API_KEY'}
+                ? `${catalog.length} models in catalog · ${agents.length} agents`
+                : 'Configure OPENROUTER_API_KEY or OPENAI_API_KEY'}
             </p>
           </div>
         </div>
@@ -90,7 +89,7 @@ export function ModelsPage() {
           <div className="flex items-center justify-between border-b border-border-subtle bg-surface-bright p-5">
             <div className="flex items-center gap-2">
               <MaterialIcon name="dns" className="text-outline" />
-              <h2 className="text-headline-sm text-primary">Các Mô Hình Khả Dụng</h2>
+              <h2 className="text-headline-sm text-primary">Available Models</h2>
             </div>
             <span className="rounded bg-surface-container-high px-2 py-1 text-xs font-medium text-on-surface-variant">
               Read-Only
@@ -98,18 +97,18 @@ export function ModelsPage() {
           </div>
           <div className="flex-1 overflow-x-auto">
             {loading ? (
-              <p className="p-6 text-on-surface-variant">Đang tải…</p>
+              <p className="p-6 text-on-surface-variant">Loading…</p>
             ) : catalog.length === 0 ? (
-              <p className="p-6 text-on-surface-variant">Không có model nào</p>
+              <p className="p-6 text-on-surface-variant">No models</p>
             ) : (
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-border-subtle bg-surface-container-low">
-                    <th className="px-5 py-3 font-label-md font-semibold text-on-surface-variant">Nhà Cung Cấp</th>
+                    <th className="px-5 py-3 font-label-md font-semibold text-on-surface-variant">Provider</th>
                     <th className="px-5 py-3 font-label-md font-semibold text-on-surface-variant">Model ID</th>
                     <th className="px-5 py-3 font-label-md font-semibold text-on-surface-variant">Ref</th>
-                    <th className="px-5 py-3 font-label-md font-semibold text-on-surface-variant">Tags / Khả năng</th>
-                    <th className="px-5 py-3 text-right font-label-md font-semibold text-on-surface-variant">Trạng Thái</th>
+                    <th className="px-5 py-3 font-label-md font-semibold text-on-surface-variant">Tags / Capabilities</th>
+                    <th className="px-5 py-3 text-right font-label-md font-semibold text-on-surface-variant">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -140,7 +139,7 @@ export function ModelsPage() {
                       <td className="px-5 py-3 text-right">
                         <span className="inline-flex items-center gap-1 text-sm font-medium text-status-success">
                           <span className="h-2 w-2 rounded-full bg-status-success" />
-                          Sẵn sàng
+                          Ready
                         </span>
                       </td>
                     </tr>
@@ -155,13 +154,13 @@ export function ModelsPage() {
           <div className="rounded-xl border border-border-subtle bg-surface p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-2">
               <MaterialIcon name="hub" className="text-outline" />
-              <h2 className="text-headline-sm text-primary">Phân Bổ Agent</h2>
+              <h2 className="text-headline-sm text-primary">Agent Assignments</h2>
             </div>
             <div className="space-y-4">
               {loading ? (
-                <p className="text-on-surface-variant">Đang tải…</p>
+                <p className="text-on-surface-variant">Loading…</p>
               ) : agents.length === 0 ? (
-                <p className="text-on-surface-variant">Chưa có agent</p>
+                <p className="text-on-surface-variant">No agents</p>
               ) : (
                 agents.map(([id, cfg], i) => (
                   <div key={id} className="rounded-lg border border-border-subtle bg-surface-bright p-3">
@@ -202,7 +201,7 @@ export function ModelsPage() {
 
           {usage.length > 0 && (
             <div className="relative overflow-hidden rounded-xl border border-border-subtle bg-surface p-5 shadow-sm">
-              <h3 className="relative z-10 mb-4 text-headline-sm text-primary">Phân bổ nguồn model</h3>
+              <h3 className="relative z-10 mb-4 text-headline-sm text-primary">Model source allocation</h3>
               <div className="relative z-10 space-y-3">
                 {usage.map((u) => (
                   <div key={u.label}>

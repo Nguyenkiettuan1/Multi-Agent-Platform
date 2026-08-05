@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "sql-server": {
+      "command": "python",
+      "args": ["mcp-servers/sql-server/server.py"],
+      "env": {
+        "DATABASE_URL": "postgresql+psycopg://agent_reader:agent_reader_local@localhost:5434/multiagent?options=-csearch_path%3Dapp"
+      }
+    },
+    "search-server": {
+      "command": "python",
+      "args": ["mcp-servers/search-server/server.py"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "./multi-agent"
+      ]
+    },
+    "fetch": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    }
+  }
+}

@@ -1,5 +1,5 @@
-const API_KEY_STORAGE = 'phanlaw_api_key'
-const SESSIONS_STORAGE = 'phanlaw_chat_sessions'
+const API_KEY_STORAGE = 'multiagent_api_key'
+const SESSIONS_STORAGE = 'multiagent_chat_sessions'
 
 export type ChatSession = {
   id: string

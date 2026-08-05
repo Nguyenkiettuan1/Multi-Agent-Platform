@@ -10,15 +10,15 @@ from workflows.state import EvalResult, WorkerResult
 
 logger = logging.getLogger(__name__)
 
-JUDGE_SYSTEM = """Bạn là evaluator cho hệ thống RAG. Đánh giá câu trả lời dựa trên nguồn được cung cấp.
-Trả JSON:
+JUDGE_SYSTEM = """You are an evaluator for a RAG system. Score the answer based on the provided sources.
+Return JSON:
 {
   "faithfulness": 0.0-1.0,
   "citation_quality": 0.0-1.0,
-  "notes": "ngắn gọn"
+  "notes": "brief"
 }
-faithfulness: câu trả lời có bám nguồn không, có bịa không
-citation_quality: có dùng [Dx]/[Wx] đúng không"""
+faithfulness: does the answer stay grounded in sources, without hallucination
+citation_quality: are [Dx]/[Wx] tags used correctly"""
 
 
 async def judge_rag_response(
@@ -40,9 +40,9 @@ async def judge_rag_response(
         {
             "role": "user",
             "content": (
-                f"Câu hỏi: {user_message}\n\n"
-                f"Nguồn:\n{sources_text}\n\n"
-                f"Câu trả lời:\n{response[:3000]}"
+                f"Question: {user_message}\n\n"
+                f"Sources:\n{sources_text}\n\n"
+                f"Answer:\n{response[:3000]}"
             ),
         },
     ]

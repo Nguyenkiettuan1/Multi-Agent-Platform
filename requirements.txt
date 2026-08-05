@@ -27,6 +27,7 @@ python-multipart>=0.0.9
 # Document parsing (RAG ingest)
 pypdf>=4.0
 python-docx>=1.1
+Pillow>=10.0
 
 # Observability
 opentelemetry-api>=1.20

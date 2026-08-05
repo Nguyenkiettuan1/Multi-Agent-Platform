@@ -80,7 +80,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
 
 def resolve_azure_api_version(model: ModelEntry, provider: ProviderConfig) -> str:
-    """Azure AI Foundry / cognitiveservices — dùng 2025-01-01-preview cho chat deployments."""
+    """Azure AI Foundry / cognitiveservices — uses 2025-01-01-preview for chat deployments."""
     env_ver = resolve_env("AZURE_OPENAI_API_VERSION")
     if env_ver:
         return env_ver
@@ -93,7 +93,7 @@ def resolve_azure_api_version(model: ModelEntry, provider: ProviderConfig) -> st
 
 
 def resolve_azure_deployment(model: ModelEntry) -> str:
-    """Deployment name trên Azure — khớp model_id trong catalog (gpt-4o-mini, gpt-4.1, …)."""
+    """Azure deployment name — matches model_id in the catalog (gpt-4o-mini, gpt-4.1, …)."""
     return model.model_id
 
 

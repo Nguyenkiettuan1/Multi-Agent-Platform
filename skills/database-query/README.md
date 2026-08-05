@@ -1,26 +1,24 @@
 # Database Query Skill
 
-> **Developer docs** — file này cho người đọc, agent KHÔNG load README.md.
-> Agent đọc `SKILL.md`. Platform đọc `skill.yaml`.
+> **Developer docs** — agents do **not** load `README.md`. The agent reads `SKILL.md`; the platform reads `skill.yaml`.
 
-## Mục đích
+## Purpose
 
-Hướng dẫn DB Worker truy vấn PostgreSQL an toàn (SELECT only).
+Guide the DB worker to query PostgreSQL safely (SELECT only).
 
-## Files trong skill này
+## Files
 
-| File | Ai đọc | Nội dung |
-|------|--------|----------|
-| `skill.yaml` | Platform (router, loader) | triggers, agents, settings |
-| `SKILL.md` | Agent (LLM) | Quy tắc SQL, schema, examples |
-| `README.md` | Developer | Tài liệu này |
+| File | Consumer | Content |
+|------|----------|---------|
+| `skill.yaml` | Platform | triggers, agents, settings |
+| `SKILL.md` | Agent | SQL rules, schema, examples |
+| `README.md` | Developer | This document |
 
-## Tùy biến
+## Customization
 
-Sửa `skill.yaml` → đổi triggers, max_rows, agents mà không cần sửa markdown.
+- Edit `skill.yaml` — change triggers, `max_rows`, assigned agents
+- Edit `SKILL.md` — change SQL rules, schema documentation, examples
 
-Sửa `SKILL.md` → đổi quy tắc, schema, ví dụ cho agent.
+## Add a new table
 
-## Thêm schema mới
-
-Cập nhật section Schema trong `SKILL.md` hoặc tạo `reference.md`.
+Update the Schema section in `SKILL.md` or add `reference.md`.

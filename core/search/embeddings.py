@@ -96,14 +96,14 @@ def resolve_embedding_route() -> EmbeddingRoute | None:
 
 
 def _openai_model_id(model: str) -> str:
-    """OpenAI API: text-embedding-ada-002 (không có prefix openai/)."""
+    """OpenAI API: text-embedding-ada-002 (no openai/ prefix)."""
     if model.startswith("openai/"):
         return model.split("/", 1)[1]
     return model
 
 
 def _openrouter_model_id(model: str) -> str:
-    """OpenRouter: openai/text-embedding-ada-002 (có prefix)."""
+    """OpenRouter: openai/text-embedding-ada-002 (with prefix)."""
     bare = _openai_model_id(model)
     if "/" in model:
         return model

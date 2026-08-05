@@ -1,21 +1,21 @@
-# AI Engineering Guide — Kiến thức nền tảng
+# AI Engineering Guide — Foundational Knowledge
 
-Tài liệu này tổng hợp kiến thức cần thiết cho team xây dựng hệ thống Multi-Agent Enterprise.
+This document consolidates the knowledge required for teams building an Enterprise Multi-Agent system.
 
 ---
 
-## 1. Agentic AI — Khái niệm cốt lõi
+## 1. Agentic AI — Core Concepts
 
 ### Agent vs Chatbot
 
-| | Chatbot truyền thống | Agentic AI |
+| | Traditional Chatbot | Agentic AI |
 |---|---|---|
 | Input → Output | 1 turn, text only | Multi-step, tool use, planning |
-| Knowledge | Chỉ training data | Tools + RAG + real-time data |
-| Autonomy | Không | Có (trong giới hạn) |
-| Error handling | Trả lời sai | Retry, fallback, ask human |
+| Knowledge | Training data only | Tools + RAG + real-time data |
+| Autonomy | None | Yes (within limits) |
+| Error handling | Incorrect answer | Retry, fallback, ask human |
 
-### Vòng lặp Agent (Agent Loop)
+### Agent Loop
 
 ```
 Observe → Think → Act → Observe → ... → Respond
@@ -25,23 +25,23 @@ Observe → Think → Act → Observe → ... → Respond
 
 **ReAct Pattern** (Reasoning + Acting):
 ```
-Thought: User muốn tìm hợp đồng ABC. Tôi cần query database.
+Thought: User wants to find contract ABC. I need to query the database.
 Action: execute_query("SELECT * FROM contracts WHERE name LIKE '%ABC%'")
 Observation: [{id: 1, name: "ABC Corp", ...}]
-Thought: Tìm thấy 1 hợp đồng. Tôi sẽ tóm tắt cho user.
-Action: respond("Tìm thấy hợp đồng ABC Corp, ký ngày...")
+Thought: Found 1 contract. I will summarize it for the user.
+Action: respond("Found contract ABC Corp, signed on...")
 ```
 
-### Khi nào dùng Agent vs Workflow
+### When to Use Agent vs Workflow
 
-| Dùng Agent | Dùng Workflow (deterministic) |
+| Use Agent | Use Workflow (deterministic) |
 |------------|-------------------------------|
-| Input không predictable | Input có cấu trúc cố định |
-| Cần reasoning | Chỉ cần transform data |
-| Multi-tool orchestration | 1-2 bước đơn giản |
-| Exploratory tasks | Compliance-critical (cần audit trail chính xác) |
+| Unpredictable input | Fixed structured input |
+| Reasoning required | Data transformation only |
+| Multi-tool orchestration | 1–2 simple steps |
+| Exploratory tasks | Compliance-critical (needs precise audit trail) |
 
-**Best practice:** Hybrid — workflow cho phần deterministic, agent cho phần cần reasoning.
+**Best practice:** Hybrid — workflow for deterministic parts, agent for parts requiring reasoning.
 
 ---
 
@@ -49,7 +49,7 @@ Action: respond("Tìm thấy hợp đồng ABC Corp, ký ngày...")
 
 ### Model Context Protocol (MCP)
 
-MCP là **chuẩn mở** (Anthropic) để LLM gọi external tools. Tương tự LSP cho IDE.
+MCP is an **open standard** (Anthropic) for LLMs to call external tools. Similar to LSP for IDEs.
 
 **Architecture:**
 ```
@@ -63,51 +63,51 @@ MCP là **chuẩn mở** (Anthropic) để LLM gọi external tools. Tương t�
                                     └─────────┘
 ```
 
-**3 primitives của MCP:**
-1. **Tools** — Functions agent có thể gọi (`execute_query`, `search`)
-2. **Resources** — Data agent có thể đọc (schema, docs)
-3. **Prompts** — Template prompts tái sử dụng
+**3 MCP primitives:**
+1. **Tools** — Functions the agent can call (`execute_query`, `search`)
+2. **Resources** — Data the agent can read (schema, docs)
+3. **Prompts** — Reusable prompt templates
 
-### Thiết kế Tool tốt
+### Good Tool Design
 
 ```python
-# ❌ BAD — tool quá rộng, không an toàn
+# ❌ BAD — tool too broad, unsafe
 @tool
 def run_sql(query: str) -> str:
     return db.execute(query)  # SQL injection risk!
 
-# ✅ GOOD — tool hẹp, an toàn, có validation
+# ✅ GOOD — narrow, safe tool with validation
 @tool
 def search_contracts(
     name: str,
     status: Literal["active", "expired", "all"] = "all",
     limit: int = 10
 ) -> list[Contract]:
-    """Tìm hợp đồng theo tên. Chỉ trả về contracts user có quyền xem."""
+    """Search contracts by name. Returns only contracts the user is authorized to view."""
     return contract_repo.search(name=name, status=status, limit=min(limit, 50))
 ```
 
-**Nguyên tắc thiết kế tool:**
-1. **Narrow scope** — 1 tool = 1 việc rõ ràng
-2. **Typed inputs** — Dùng Pydantic schema, enum, validation
+**Tool design principles:**
+1. **Narrow scope** — 1 tool = 1 clear task
+2. **Typed inputs** — Use Pydantic schema, enum, validation
 3. **Safe defaults** — Read-only, row limits, timeouts
-4. **Descriptive** — Docstring = mô tả cho LLM đọc
-5. **Idempotent** — Gọi nhiều lần không gây side effect (nếu read)
+4. **Descriptive** — Docstring = description for the LLM to read
+5. **Idempotent** — Multiple calls cause no side effects (for reads)
 
 ---
 
 ## 3. Multi-Agent Patterns
 
-### Pattern 1: Supervisor (dùng trong project này)
+### Pattern 1: Supervisor (used in this project)
 
 ```
 User → Supervisor → [Worker A, Worker B, Worker C] → Supervisor → User
 ```
 
-Supervisor quyết định agent nào làm gì. Workers chuyên biệt.
+The supervisor decides which agent does what. Workers are specialized.
 
-**Ưu:** Rõ ràng, dễ debug, dễ scale từng agent.
-**Nhược:** Supervisor có thể bottleneck.
+**Pros:** Clear, easy to debug, easy to scale each agent individually.
+**Cons:** Supervisor can become a bottleneck.
 
 ### Pattern 2: Swarm / Handoff
 
@@ -115,10 +115,10 @@ Supervisor quyết định agent nào làm gì. Workers chuyên biệt.
 User → Agent A → (handoff) → Agent B → (handoff) → Agent C → User
 ```
 
-Agent tự quyết định chuyển cho agent khác.
+Agents decide on their own when to hand off to another agent.
 
-**Ưu:** Linh hoạt, emergent behavior.
-**Nhược:** Khó predict, khó debug.
+**Pros:** Flexible, emergent behavior.
+**Cons:** Hard to predict, hard to debug.
 
 ### Pattern 3: Pipeline
 
@@ -126,10 +126,10 @@ Agent tự quyết định chuyển cho agent khác.
 User → Agent A → Agent B → Agent C → User
 ```
 
-Mỗi agent xử lý tuần tự, output = input của agent tiếp.
+Each agent processes sequentially; output becomes input for the next agent.
 
-**Ưu:** Deterministic flow.
-**Nhược:** Không parallel, rigid.
+**Pros:** Deterministic flow.
+**Cons:** No parallelism, rigid.
 
 ### Pattern 4: Debate / Consensus
 
@@ -137,26 +137,26 @@ Mỗi agent xử lý tuần tự, output = input của agent tiếp.
 User → [Agent A, Agent B] debate → Judge Agent → User
 ```
 
-Nhiều agent debate, judge tổng hợp.
+Multiple agents debate; a judge synthesizes the result.
 
-**Ưu:** Quality cao cho complex decisions.
-**Nhược:** Chậm, tốn token.
+**Pros:** High quality for complex decisions.
+**Cons:** Slow, token-heavy.
 
-**→ Project này dùng Supervisor + A2A** vì phù hợp enterprise (predictable, auditable, scalable).
+**→ This project uses Supervisor + A2A** because it fits enterprise needs (predictable, auditable, scalable).
 
 ---
 
 ## 4. A2A (Agent-to-Agent)
 
-### Khái niệm
+### Concept
 
-A2A cho phép agent A gọi agent B như một **remote tool**, qua HTTP + Agent Card.
+A2A lets agent A call agent B as a **remote tool**, over HTTP + Agent Card.
 
-**Agent Card** (tương tự OpenAPI spec cho agent):
+**Agent Card** (similar to an OpenAPI spec for agents):
 ```json
 {
   "name": "db-agent",
-  "description": "Truy vấn database thay người dùng",
+  "description": "Query the database on behalf of the user",
   "url": "https://.../protocols/a2a",
   "skills": [{
     "id": "query-database",
@@ -172,12 +172,12 @@ A2A cho phép agent A gọi agent B như một **remote tool**, qua HTTP + Agent
 
 | | MCP | A2A |
 |---|---|---|
-| Gọi gì | Tools (functions) | Agents (autonomous) |
+| Calls what | Tools (functions) | Agents (autonomous) |
 | Complexity | Simple function call | Full agent conversation |
 | Use case | DB query, API call | Delegate complex sub-task |
 | Protocol | MCP spec | A2A spec (Google) |
 
-**Trong project:** Orchestrator dùng A2A gọi workers; Workers dùng MCP gọi tools.
+**In this project:** The orchestrator uses A2A to call workers; workers use MCP to call tools.
 
 ---
 
@@ -196,81 +196,81 @@ User query → Embed → Retrieve top-k → Augment prompt → LLM → Answer
 | Aspect | Recommendation |
 |--------|---------------|
 | Chunk size | 512–1024 tokens, overlap 10–20% |
-| Embedding model | text-embedding-3-large hoặc domain-specific |
+| Embedding model | text-embedding-3-large or domain-specific |
 | Retrieval | Hybrid (semantic + keyword/BM25) |
-| Reranking | Cross-encoder reranker cho top-k |
-| Grounding | Luôn cite source trong response |
+| Reranking | Cross-encoder reranker for top-k |
+| Grounding | Always cite source in the response |
 
 ### RAG vs Fine-tuning
 
 | | RAG | Fine-tuning |
 |---|---|---|
-| Update knowledge | Instant (re-index) | Cần retrain |
+| Update knowledge | Instant (re-index) | Requires retrain |
 | Cost | Retrieval latency | Training cost |
-| Accuracy | Phụ thuộc retrieval quality | Học pattern sâu |
+| Accuracy | Depends on retrieval quality | Learns deeper patterns |
 | Use case | FAQ, docs, knowledge base | Style, format, reasoning |
 
-**→ Dùng cả hai:** RAG cho knowledge, FT cho behavior.
+**→ Use both:** RAG for knowledge, FT for behavior.
 
 ---
 
-## 6. Prompt Engineering cho Agents
+## 6. Prompt Engineering for Agents
 
 ### System Prompt structure
 
 ```markdown
 # Role
-Bạn là DB Agent chuyên truy vấn database cho hệ thống PHANLAW.
+You are a DB Agent specialized in querying the database for the multi-agent system.
 
 # Capabilities
-- execute_query: Chạy SELECT queries (read-only)
-- list_tables: Liệt kê bảng
-- describe_table: Xem schema
+- execute_query: Run SELECT queries (read-only)
+- list_tables: List tables
+- describe_table: View schema
 
 # Rules
-1. KHÔNG BAO GIỜ chạy INSERT/UPDATE/DELETE
-2. Luôn dùng parameterized queries
-3. Giới hạn 100 rows mỗi query
-4. Nếu không chắc schema, gọi describe_table trước
+1. NEVER run INSERT/UPDATE/DELETE
+2. Always use parameterized queries
+3. Limit to 100 rows per query
+4. If unsure about schema, call describe_table first
 
 # Output format
-- Trả lời bằng tiếng Việt
-- Kèm SQL đã chạy (trong code block)
-- Nếu không tìm thấy, nói rõ và gợi ý query khác
+- Respond in Vietnamese
+- Include the SQL executed (in a code block)
+- If nothing is found, state clearly and suggest an alternative query
 ```
 
 ### Anti-patterns
 
-| ❌ Tránh | ✅ Thay bằng |
+| ❌ Avoid | ✅ Use instead |
 |----------|-------------|
-| "Be helpful" (vague) | Specific rules và examples |
-| Quá dài (>2000 tokens) | Tách vào Skills |
-| Hard-code data trong prompt | Dùng RAG hoặc tools |
-| Không có output format | Định nghĩa rõ format |
+| "Be helpful" (vague) | Specific rules and examples |
+| Too long (>2000 tokens) | Split into Skills |
+| Hard-code data in the prompt | Use RAG or tools |
+| No output format | Define format clearly |
 
 ---
 
 ## 7. Evaluation (Eval)
 
-### Tại sao eval quan trọng
+### Why eval matters
 
-LLM outputs **non-deterministic** — không thể unit test như code thường. Eval là cách duy nhất đảm bảo quality.
+LLM outputs are **non-deterministic** — they cannot be unit-tested like regular code. Eval is the only way to ensure quality.
 
-### Loại eval
+### Types of eval
 
-| Type | Mô tả | Khi nào |
+| Type | Description | When |
 |------|--------|---------|
-| **Unit eval** | 1 input → 1 expected output | Mỗi PR |
-| **Batch eval** | N test cases → pass rate | Trước deploy |
+| **Unit eval** | 1 input → 1 expected output | Every PR |
+| **Batch eval** | N test cases → pass rate | Before deploy |
 | **Continuous eval** | Production samples → monitor | Ongoing |
 | **A/B eval** | Model A vs B | Model comparison |
 
-### Thiết kế eval case
+### Designing eval cases
 
 ```yaml
 # eval/cases/db-agent-basic.yaml
 - id: count-contracts
-  input: "Có bao nhiêu hợp đồng đang active?"
+  input: "How many active contracts are there?"
   expected_tools: ["execute_query"]
   expected_sql_contains: ["SELECT", "COUNT", "contracts", "active"]
   grading:
@@ -283,7 +283,7 @@ LLM outputs **non-deterministic** — không thể unit test như code thường
 
 ### Graders
 
-| Grader | Dùng cho |
+| Grader | Used for |
 |--------|----------|
 | Exact match | Structured output |
 | Contains / Regex | SQL queries, formats |
@@ -295,14 +295,14 @@ LLM outputs **non-deterministic** — không thể unit test như code thường
 
 ## 8. Fine-tuning
 
-### Khi nào fine-tune
+### When to fine-tune
 
 | Signal | Action |
 |--------|--------|
-| Agent trả lời đúng nhưng sai format | SFT |
-| Agent chọn sai tool | RFT với tool-call grader |
-| 2 responses đều đúng, 1 tốt hơn | DPO |
-| Thiếu domain knowledge | RAG trước, SFT nếu RAG không đủ |
+| Agent answers correctly but wrong format | SFT |
+| Agent selects wrong tool | RFT with tool-call grader |
+| 2 responses both correct, 1 better | DPO |
+| Missing domain knowledge | RAG first, SFT if RAG is insufficient |
 
 ### Pipeline
 
@@ -319,12 +319,12 @@ LLM outputs **non-deterministic** — không thể unit test như code thường
 ### Data quality > quantity
 
 - 100 high-quality examples > 10,000 noisy examples
-- Luôn có human review trước khi train
+- Always have human review before training
 - Track lineage: trace_id → training example → model version
 
 ---
 
-## 9. Security cho Agentic Systems
+## 9. Security for Agentic Systems
 
 ### Threat model
 
@@ -350,7 +350,7 @@ Layer 5: Human approval (destructive actions)
 
 ## 10. Observability
 
-### 3 pillars cho AI systems
+### 3 pillars for AI systems
 
 | Pillar | Metrics | Tools |
 |--------|---------|-------|
@@ -371,7 +371,7 @@ User reports bad response
 
 ---
 
-## 11. Tài liệu tham khảo
+## 11. References
 
 ### Official
 - [MCP Specification](https://modelcontextprotocol.io)
@@ -380,8 +380,8 @@ User reports bad response
 - [LangGraph Multi-Agent](https://langchain-ai.github.io/langgraph/)
 
 ### Books & Courses
-- "Building LLM Apps" — patterns và production lessons
-- "AI Engineering" (Chip Huyen) — MLOps cho LLM
+- "Building LLM Apps" — patterns and production lessons
+- "AI Engineering" (Chip Huyen) — MLOps for LLMs
 - Microsoft Learn: AI-102, AI-050
 
 ### Community

@@ -44,7 +44,7 @@ export function AgentPipelinePanel({ steps, live = false, defaultExpanded = true
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-label-md font-medium text-on-surface [&::-webkit-details-marker]:hidden">
         <MaterialIcon name="account_tree" size={18} className="text-primary" />
-        {live ? 'Đang xử lý' : 'Luồng xử lý agents'}
+        {live ? 'Processing' : 'Agent pipeline'}
         {running ? (
           <span className="ml-1 truncate text-label-sm font-normal text-primary">
             — {running.title}

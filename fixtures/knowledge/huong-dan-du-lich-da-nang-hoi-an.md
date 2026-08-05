@@ -190,4 +190,4 @@ Thêm: Sơn Trà (chùa Linh Ứng, voọc chà vá chân nâu nếu đặt tour
 
 ---
 
-*Tài liệu nội bộ PHANLAW Agent Workspace — dùng để kiểm thử upload, chunking và tra cứu RAG. Không thay thế hướng dẫn chính thức từ cơ quan du lịch.*
+*Tài liệu mẫu Agent Workspace — dùng để kiểm thử upload, chunking và tra cứu RAG. Không thay thế hướng dẫn chính thức từ cơ quan du lịch.*
