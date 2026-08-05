@@ -1,6 +1,6 @@
 # Documentation index
 
-English-first guides for the Multi-Agent Platform. **Start here** if you are new.
+English documentation for the Multi-Agent Platform.
 
 ## Getting started
 
@@ -8,7 +8,7 @@ English-first guides for the Multi-Agent Platform. **Start here** if you are new
 |----------|-------------|
 | [../README.md](../README.md) | Project overview & quick start |
 | [../AGENTS.md](../AGENTS.md) | Agent types, MCP, contributor map |
-| [12-LOCAL-SETUP.md](12-LOCAL-SETUP.md) | **Local development** — Docker, `.env`, migrate, run API & UI |
+| [12-LOCAL-SETUP.md](12-LOCAL-SETUP.md) | **Local development** — Docker, `.env`, migrate, API & UI |
 | [00-PROJECT-GUIDE.md](00-PROJECT-GUIDE.md) | Layer architecture & folder responsibilities |
 
 ## Architecture & design
@@ -49,23 +49,12 @@ English-first guides for the Multi-Agent Platform. **Start here** if you are new
 | [FRONTEND-DESIGN-BRIEF.md](FRONTEND-DESIGN-BRIEF.md) | UI/UX spec for chat & admin |
 | [../multi-agent-frontend/README.md](../multi-agent-frontend/README.md) | Frontend dev guide |
 
-## Language note
-
-Canonical **setup and contributor** docs (`README.md`, `AGENTS.md`, `12-LOCAL-SETUP.md`, `00-PROJECT-GUIDE.md`, `17-EXTERNAL-MCP.md`) are maintained in **English**. Older architecture docs may still contain Vietnamese sections — prefer the English guides above for running the project.
-
 ## Quick command reference
 
 ```bash
-# Infrastructure
 docker compose up -d
-
-# Backend
 python scripts/db_migrate.py && python scripts/seed.py
 python -m gateway.main
-
-# Frontend
 cd multi-agent-frontend && npm run dev
-
-# Tests
 pytest tests/
 ```

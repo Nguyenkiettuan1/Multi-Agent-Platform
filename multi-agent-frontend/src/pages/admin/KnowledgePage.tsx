@@ -53,7 +53,7 @@ export function KnowledgePage() {
       await api.uploadKnowledge(file, { domain: domain || 'general' })
       reload()
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Upload thất bại')
+      setUploadError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
     }
@@ -63,9 +63,9 @@ export function KnowledgePage() {
     <div className="mx-auto max-w-[1200px] p-margin-page">
       <div className="mb-8 flex items-end justify-between">
         <div>
-          <h1 className="text-display-lg text-primary">Quản trị Tri thức</h1>
+          <h1 className="text-display-lg text-primary">Knowledge Management</h1>
           <p className="mt-2 text-body-md text-on-surface-variant">
-            Quản lý và cập nhật nguồn dữ liệu cho các Agent nội bộ.
+            Manage and update data sources for internal agents.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -75,7 +75,7 @@ export function KnowledgePage() {
               onChange={(e) => setDomain(e.target.value)}
               className="appearance-none rounded-lg border border-border-subtle bg-surface px-4 py-2 pr-10 text-label-md text-on-surface focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none"
             >
-              <option value="">Tất cả Lĩnh vực</option>
+              <option value="">All Domains</option>
               {domains.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -95,7 +95,7 @@ export function KnowledgePage() {
             className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface px-4 py-2 text-label-md text-primary hover:bg-surface-container-low disabled:opacity-50"
           >
             <MaterialIcon name="refresh" size={18} className={loading ? 'animate-spin' : ''} />
-            Làm mới
+            Refresh
           </button>
           <input
             ref={fileRef}
@@ -115,7 +115,7 @@ export function KnowledgePage() {
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary hover:opacity-90 disabled:opacity-50"
           >
             <MaterialIcon name="upload" size={18} />
-            {uploading ? 'Đang tải lên…' : 'Tải lên tài liệu'}
+            {uploading ? 'Uploading…' : 'Upload document'}
           </button>
         </div>
       </div>
@@ -129,19 +129,19 @@ export function KnowledgePage() {
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="flex flex-col justify-between rounded-xl border border-border-subtle bg-surface p-6">
           <div className="mb-4 flex items-start justify-between">
-            <span className="text-label-md text-on-surface-variant">Tổng tài liệu</span>
+            <span className="text-label-md text-on-surface-variant">Total documents</span>
             <span className="rounded-lg bg-surface-container-low p-2 text-secondary">
               <MaterialIcon name="description" />
             </span>
           </div>
           <div>
             <div className="mb-1 text-display-lg text-primary">{loading ? '…' : formatCount(total)}</div>
-            <div className="text-label-sm text-on-surface-variant">Từ API knowledge</div>
+            <div className="text-label-sm text-on-surface-variant">From knowledge API</div>
           </div>
         </div>
         <div className="flex flex-col justify-between rounded-xl border border-border-subtle bg-surface p-6">
           <div className="mb-4 flex items-start justify-between">
-            <span className="text-label-md text-on-surface-variant">Trạng thái Embedding</span>
+            <span className="text-label-md text-on-surface-variant">Embedding Status</span>
             <span className="rounded-lg border border-border-subtle bg-surface-container-lowest p-2 text-status-success">
               <MaterialIcon name="check_circle" />
             </span>
@@ -149,7 +149,7 @@ export function KnowledgePage() {
           <div>
             <div className="mb-1 text-display-lg text-primary">{loading ? '…' : `${embeddingPct}%`}</div>
             <div className="text-label-sm text-on-surface-variant">
-              {withEmbedding}/{total} có embedding
+              {withEmbedding}/{total} with embedding
             </div>
           </div>
         </div>
@@ -160,7 +160,7 @@ export function KnowledgePage() {
           </div>
           <div>
             <div className="mb-1 text-display-lg">{loading ? '…' : formatCount(total - docs.length)}</div>
-            <div className="text-label-sm opacity-90">Tài liệu con (chunk)</div>
+            <div className="text-label-sm opacity-90">Child documents (chunks)</div>
           </div>
         </div>
       </div>
@@ -170,24 +170,24 @@ export function KnowledgePage() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-border-subtle bg-surface-container-low">
-                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Tiêu đề</th>
-                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Lĩnh vực</th>
-                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Nguồn</th>
-                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Trạng thái Embedding</th>
-                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Ngày cập nhật</th>
+                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Title</th>
+                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Domain</th>
+                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Source</th>
+                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Embedding Status</th>
+                <th className="px-6 py-4 text-label-sm uppercase tracking-wider text-on-surface-variant">Updated</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant">
-                    Đang tải…
+                    Loading…
                   </td>
                 </tr>
               ) : docs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-on-surface-variant">
-                    Chưa có tài liệu — hãy tải lên tài liệu đầu tiên.
+                    No documents yet — upload your first document.
                   </td>
                 </tr>
               ) : (
@@ -219,7 +219,7 @@ export function KnowledgePage() {
                           }`}
                         >
                           <MaterialIcon name={doc.has_embedding ? 'check_circle' : 'sync'} size={16} />
-                          {doc.has_embedding ? 'Hoàn tất' : 'Chưa embed'}
+                          {doc.has_embedding ? 'Complete' : 'Not embedded'}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-on-surface-variant">{formatDateTime(doc.updated_at)}</td>
@@ -232,7 +232,7 @@ export function KnowledgePage() {
         </div>
         <div className="flex items-center justify-between border-t border-border-subtle bg-surface-container-lowest px-6 py-4">
           <span className="text-label-sm text-on-surface-variant">
-            Hiển thị {docs.length} trên {total} bản ghi
+            Showing {docs.length} of {total} records
           </span>
         </div>
       </div>

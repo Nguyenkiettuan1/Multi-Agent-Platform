@@ -1,15 +1,12 @@
-> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
-> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+# GitHub Reference Map — Architecture ↔ Source Code
 
-# GitHub Reference Map — Kiến trúc ↔ Nguồn code
-
-> Mỗi quyết định kiến trúc Multi-Agent đều có **nguồn tham chiếu cụ thể** từ repo/pattern production trên GitHub hoặc blog engineering chính thức.
+> Every Multi-Agent architecture decision has a **specific reference source** from a production repo/pattern on GitHub or an official engineering blog.
 
 ---
 
-## 1. Bản đồ quyết định kiến trúc
+## 1. Architecture Decision Map
 
-| # | Quyết định kiến trúc | Nguồn tham chiếu | Repo / Link | Project file |
+| # | Architecture decision | Reference source | Repo / Link | Project file |
 |---|-------------------|------------------|-------------|--------------|
 | 1 | 3-Plane (Control / Execution / Intelligence) | Mercor Enterprise Agent Architecture | [Blog](https://www.mercor.com/blog/the-three-planes-of-enterprise-agent-systems/) | `docs/01-ARCHITECTURE.md` |
 | 2 | Supervisor multi-agent | LangGraph Supervisor | [langgraph-supervisor-py](https://github.com/langchain-ai/langgraph-supervisor-py) | `agents/orchestrator/` |
@@ -39,11 +36,11 @@
 
 ---
 
-## 2. Danh mục GitHub theo chức năng
+## 2. GitHub Catalog by Function
 
 ### Orchestration & State
 
-| Repo | Stars | Học gì | Dùng trong project |
+| Repo | Stars | What to learn | Used in project |
 |------|-------|---------|----------------|
 | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) | 20K+ | Graph runtime, checkpointing, HITL | **Core workflow engine** |
 | [langchain-ai/langgraph-supervisor-py](https://github.com/langchain-ai/langgraph-supervisor-py) | — | Supervisor pattern | Orchestrator |
@@ -55,7 +52,7 @@
 
 ### Tools & Protocols
 
-| Repo | Học gì | Dùng trong project |
+| Repo | What to learn | Used in project |
 |------|---------|----------------|
 | [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) | MCP server SDK | `mcp-servers/sql-server/` |
 | [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) | Reference MCP servers | sql, search patterns |
@@ -65,14 +62,14 @@
 
 ### Model Routing & Cost
 
-| Repo | Học gì | Dùng trong project |
+| Repo | What to learn | Used in project |
 |------|---------|----------------|
 | [lm-sys/RouteLLM](https://github.com/lm-sys/RouteLLM) | Strong/weak model routing | Control Plane router |
 | [BerriAI/litellm](https://github.com/BerriAI/litellm) | Unified LLM API, fallbacks | Model proxy layer |
 
 ### Quality & Consensus
 
-| Repo | Học gì | Dùng trong project |
+| Repo | What to learn | Used in project |
 |------|---------|----------------|
 | [karpathy/llm-council](https://github.com/karpathy/llm-council) | 3-stage council deliberation | Council mode (critical SLO) |
 | [openai/evals](https://github.com/openai/evals) | Eval framework patterns | `eval/cases/` |
@@ -81,7 +78,7 @@
 
 ### RAG & Knowledge
 
-| Repo | Học gì | Dùng trong project |
+| Repo | What to learn | Used in project |
 |------|---------|----------------|
 | [langchain-ai/langchain](https://github.com/langchain-ai/langchain) | RAG, retrievers, embeddings | Research agent |
 | [run-llama/llama_index](https://github.com/run-llama/llama_index) | Alternative RAG framework | Reference |
@@ -90,15 +87,15 @@
 
 ### Infrastructure & Deploy
 
-| Repo | Học gì | Dùng trong project |
+| Repo | What to learn | Used in project |
 |------|---------|----------------|
 | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) (deploy) | Production deploy patterns | Cloud deploy |
 | [docker/awesome-compose](https://github.com/docker/awesome-compose) | Docker compose patterns | `docker-compose.yml` |
 | [Azure-Samples/azure-search-openai-demo](https://github.com/Azure-Samples/azure-search-openai-demo) | Azure RAG reference | Cloud RAG pattern |
 
-### Awesome Lists (đọc để khảo sát thêm)
+### Awesome Lists (read for further survey)
 
-| Repo | Mô tả |
+| Repo | Description |
 |------|--------|
 | [e2b-dev/awesome-ai-agents](https://github.com/e2b-dev/awesome-ai-agents) | Curated AI agent list |
 | [kyrolin/awesome-agentic-ai](https://github.com/kyrolin/awesome-agentic-ai) | Agentic AI resources |
@@ -107,13 +104,13 @@
 
 ---
 
-## 3. PostgreSQL — Nguồn tham chiếu
+## 3. PostgreSQL — Reference Sources
 
-| Pattern | Nguồn | Multi-Agent |
+| Pattern | Source | Multi-Agent |
 |---------|-------|---------|
 | PostgresSaver checkpoint | [langgraph-checkpoint-postgres](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-postgres) | `platform/checkpointer.py` |
 | AsyncPostgresSaver + pool | [LangGraph reference](https://langchain-ai.github.io/langgraph/reference/checkpoints/) | Production config |
-| Local = Prod checkpointer | [ActiveWizards blog](https://activewizards.com/blog/langgraph-state-management-checkpointing-recovery-and-the-persistence-layer-decision/) | **Không dùng SQLite** |
+| Local = Prod checkpointer | [ActiveWizards blog](https://activewizards.com/blog/langgraph-state-management-checkpointing-recovery-and-the-persistence-layer-decision/) | **Do not use SQLite** |
 | pgvector for RAG | [pgvector](https://github.com/pgvector/pgvector) | Phase 2: vectors in PostgreSQL |
 | Read-only DB role | PostgreSQL RBAC best practice | `infra/database/migrations/004_roles.sql` |
 | Docker local Postgres | [docker-compose postgres](https://hub.docker.com/_/postgres) | `docker-compose.yml` |
@@ -121,7 +118,7 @@
 
 ---
 
-## 4. Kiến trúc tổng hợp — Nguồn gốc từng layer
+## 4. Composite Architecture — Source of Each Layer
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -159,27 +156,27 @@
 
 ---
 
-## 5. Lộ trình đọc code GitHub (8 tuần)
+## 5. GitHub Code Reading Roadmap (8 weeks)
 
-| Tuần | Đọc repo | Mục tiêu |
+| Week | Read repo | Goal |
 |------|----------|----------|
-| 1 | `modelcontextprotocol/servers`, `python-sdk` | Hiểu MCP, build sql-mcp |
+| 1 | `modelcontextprotocol/servers`, `python-sdk` | Understand MCP, build sql-mcp |
 | 2 | `langchain-ai/langgraph`, `langgraph-101` | Graph, state, checkpoint |
 | 3 | `langgraph-supervisor-py`, `openai/swarm` | Multi-agent patterns |
 | 4 | `lm-sys/RouteLLM`, `BerriAI/litellm` | Model routing |
 | 5 | Anthropic blog + `karpathy/llm-council` | Isolation + Council |
 | 6 | `langgraph-checkpoint-postgres` + `docker-compose` | PostgreSQL local setup |
-| 7 | `crewAI` hoặc `google/adk-python` | So sánh orchestration styles |
+| 7 | `crewAI` or `google/adk-python` | Compare orchestration styles |
 | 8 | `langfuse`, `openai/evals` | Eval + observability |
 
 ---
 
-## 6. Quy tắc khi thêm component mới
+## 6. Rules When Adding a New Component
 
-Trước khi thêm bất kỳ pattern/library nào:
+Before adding any pattern/library:
 
-1. **Tìm repo reference** trên GitHub (ưu tiên >1K stars hoặc official)
-2. **Ghi vào bảng Section 1** — quyết định ↔ nguồn
-3. **Chỉ adopt pattern**, không copy toàn bộ repo
-4. **Test trên PostgreSQL local** trước khi cloud
-5. **Thêm eval case** cho behavior mới
+1. **Find a reference repo** on GitHub (prefer >1K stars or official)
+2. **Record in Section 1 table** — decision ↔ source
+3. **Adopt the pattern only**, do not copy the entire repo
+4. **Test on local PostgreSQL** before cloud
+5. **Add an eval case** for the new behavior

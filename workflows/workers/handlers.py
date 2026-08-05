@@ -1,4 +1,4 @@
-"""Worker handlers — mỗi agent một handler riêng."""
+"""Worker handlers — one handler per agent."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ async def _run_general_agent(task: SubTask, *, chat_history: list[dict] | None =
     if not summary:
         summary = (
             f"[General Agent] {task.description[:300]}\n"
-            "(Cấu hình LLM trong .env: OPENROUTER_API_KEY, OPENAI_API_KEY, hoặc AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT)"
+            "(Configure LLM in .env: OPENROUTER_API_KEY, OPENAI_API_KEY, or AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT)"
         )
     return WorkerResult(
         task_id=task.id,

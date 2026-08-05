@@ -25,7 +25,7 @@ def test_format_references_block_with_url():
         ),
     ]
     block = format_references_block(citations)
-    assert "## Nguồn tham khảo" in block
+    assert "## References" in block
     assert "https://example.com" in block
     assert "[W1]" in block
 
@@ -40,7 +40,7 @@ def test_append_citations_to_response():
         ])],
     )
     final, cites = append_citations_to_response("Trả lời ngắn.", [worker])
-    assert "## Nguồn tham khảo" not in final
+    assert "## References" not in final
     assert final == "Trả lời ngắn."
     assert len(cites) == 1
 
@@ -48,8 +48,8 @@ def test_append_citations_to_response():
 def test_strip_references_block():
     from core.search.citations import strip_references_block
 
-    text = "Câu trả lời.\n\n## Nguồn tham khảo\n- **[W1]** Example"
-    assert strip_references_block(text) == "Câu trả lời."
+    text = "Short answer.\n\n## References\n- **[W1]** Example"
+    assert strip_references_block(text) == "Short answer."
 
 
 @pytest.mark.asyncio

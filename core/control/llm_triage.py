@@ -1,4 +1,4 @@
-"""LLM-based triage — routing có ngữ cảnh hội thoại."""
+"""LLM-based triage — conversation-aware routing."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ async def triage_with_llm(
                 f"## Agent fleet\n{registry}\n\n"
                 f"{history_block}"
                 f"## Current user message\n{user_message}\n\n"
-                "Phân loại intent JSON."
+                "Classify intent as JSON."
             ),
         },
     ]

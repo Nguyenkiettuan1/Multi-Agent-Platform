@@ -32,7 +32,7 @@ async def promote_feedback_to_knowledge(
     """Index approved Q&A pair as a knowledge document for future RAG retrieval."""
     doc_id = _promoted_doc_id(trace_id)
     title = user_message[:200].strip() or f"Q&A {trace_id[:8]}"
-    content = f"Câu hỏi: {user_message.strip()}\n\nTrả lời: {response.strip()}"
+    content = f"Question: {user_message.strip()}\n\nAnswer: {response.strip()}"
 
     embedding = await embed_text(f"{title}\n{content}")
     upsert_document(

@@ -1,4 +1,4 @@
-"""Planner — tạo TaskPlan từ triage result."""
+"""Planner — create TaskPlan from triage result."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ async def plan_from_triage(
     attachments: list[dict] | None = None,
     chat_history: list[dict] | None = None,
 ) -> TaskPlan:
-    """Tạo plan — media task bind tool tại đây (LLM classify)."""
+    """Create plan — media task binds tool here (LLM classify)."""
     if triage.blocked:
         return TaskPlan(
             main_task=user_message,
@@ -88,7 +88,7 @@ async def _plan_media_subtask(
     *,
     chat_history: list[dict] | None = None,
 ) -> SubTask | None:
-    """Plan stage: LLM phân loại OCR/translate/merge + bind tool args."""
+    """Plan stage: LLM classifies OCR/translate/merge + binds tool args."""
     if not should_attempt_media_plan(user_message, attachments):
         return None
 

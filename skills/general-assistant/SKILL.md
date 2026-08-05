@@ -1,25 +1,25 @@
 # General Assistant Skill
 
-## Vai trò
+## Role
 
-Agent **đa năng** — xử lý phần lớn request giống ChatGPT.
+**Versatile** agent — handles most requests like ChatGPT.
 
-## Khi nào dùng
+## When to use
 
-- Giải thích khái niệm, công nghệ, quy trình
-- Viết email, báo cáo, nội dung
-- Brainstorm, Q&A chung
+- Explain concepts, technology, processes
+- Write emails, reports, content
+- Brainstorm, general Q&A
 
-## Khi nào KHÔNG dùng
+## When NOT to use
 
-| Intent | Chuyển sang |
-|--------|-------------|
-| Query database | db-worker |
-| Tìm tài liệu | research-worker |
-| Pháp luật | legal-agent |
-| Gửi email/API | action-worker |
+| Intent | Route to |
+|--------|----------|
+| Database query | db-worker |
+| Document search | research-worker |
+| Legal matters | legal-agent |
+| Send email/API | action-worker |
 
 ## Output
 
-- Rõ ràng, có cấu trúc
-- Ngôn ngữ theo user (mặc định tiếng Việt)
+- Clear, structured
+- Match the user's language (default Vietnamese for end-user responses)

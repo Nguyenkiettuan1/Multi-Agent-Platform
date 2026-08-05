@@ -11,7 +11,7 @@ from typing_extensions import TypedDict
 
 
 class AgentId(str, Enum):
-    """Platform đa năng — legal chỉ là MỘT domain agent."""
+    """General-purpose platform — legal is just ONE domain agent."""
 
     GENERAL = "general-agent"
     DB_WORKER = "db-worker"
@@ -84,11 +84,11 @@ class SubTask(BaseModel):
 
 
 class ChatAttachment(BaseModel):
-    """Ảnh/file đính kèm từ chat UI — OCR đọc qua image_base64."""
+    """Image/file attachment from chat UI — OCR reads via image_base64."""
 
     filename: str = "attachment"
     mime_type: str = "application/octet-stream"
-    data: str = Field(..., description="Base64 (có hoặc không prefix data:...)")
+    data: str = Field(..., description="Base64 (with or without data:... prefix)")
 
 
 class TaskPlan(BaseModel):

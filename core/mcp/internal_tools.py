@@ -1,4 +1,4 @@
-"""Built-in tools — chạy trong process, không cần spawn MCP stdio."""
+"""Built-in tools — run in-process, no MCP stdio spawn."""
 
 from __future__ import annotations
 
@@ -39,33 +39,33 @@ async def _translate_text(args: dict[str, Any]) -> str:
     if not client.enabled:
         return json.dumps(
             {
-                "error": "LLM chưa cấu hình — cần OPENROUTER_API_KEY hoặc AZURE_OPENAI_*",
-                "hint": "Thêm key trong .env rồi restart gateway",
+                "error": "LLM not configured — set OPENROUTER_API_KEY or AZURE_OPENAI_*",
+                "hint": "Add keys in .env and restart the gateway",
             },
             ensure_ascii=False,
         )
 
     prompt = (
-        f"Dịch đoạn văn sau sang ngôn ngữ đích `{target}`"
-        + (f" (nguồn: {source})" if source != "auto" else "")
-        + ". Chỉ trả bản dịch, không giải thích.\n\n"
+        f"Translate the following text into target language `{target}`"
+        + (f" (source: {source})" if source != "auto" else "")
+        + ". Return only the translation, no explanation.\n\n"
         + text
     )
     resp = await client.chat(
         "worker",
         [
-            {"role": "system", "content": "Bạn là dịch giả chuyên nghiệp."},
+            {"role": "system", "content": "You are a professional translator."},
             {"role": "user", "content": prompt},
         ],
         agent_id=AgentId.ACTION_WORKER,
     )
     if not resp.content:
-        return json.dumps({"error": "Dịch thất bại"}, ensure_ascii=False)
+        return json.dumps({"error": "Translation failed"}, ensure_ascii=False)
     return json.dumps({"translation": resp.content.strip(), "target_lang": target}, ensure_ascii=False)
 
 
 async def _ocr_extract(args: dict[str, Any]) -> str:
-    """OCR — Tesseract → LLM vision (Azure/OpenAI) → hướng dẫn MCP."""
+    """OCR — Tesseract → LLM vision (Azure/OpenAI) → MCP guidance."""
     file_path = str(args.get("file_path", "")).strip()
     image_base64 = str(args.get("image_base64", "")).strip()
     mime_type = str(args.get("mime_type", "image/png")).strip() or "image/png"
@@ -74,7 +74,7 @@ async def _ocr_extract(args: dict[str, Any]) -> str:
         path = Path(file_path)
         if not path.is_file():
             return json.dumps(
-                {"error": f"Không tìm thấy file: {file_path}"},
+                {"error": f"File not found: {file_path}"},
                 ensure_ascii=False,
             )
         try:
@@ -94,7 +94,7 @@ async def _ocr_extract(args: dict[str, Any]) -> str:
         except ImportError:
             pass
         except Exception as exc:
-            return json.dumps({"error": f"Đọc ảnh thất bại: {exc}"}, ensure_ascii=False)
+            return json.dumps({"error": f"Failed to read image: {exc}"}, ensure_ascii=False)
 
     if image_base64:
         try:
@@ -120,7 +120,7 @@ async def _ocr_extract(args: dict[str, Any]) -> str:
 
     return json.dumps(
         {
-            "error": "Không đọc được ảnh — kiểm tra LLM vision (Azure gpt-4o-mini/4.1) hoặc cài Tesseract/paddleocr",
+            "error": "Could not read image — check LLM vision (Azure gpt-4o-mini/4.1) or install Tesseract/paddleocr",
             "accepted_args": ["file_path", "image_base64", "mime_type"],
         },
         ensure_ascii=False,
@@ -140,7 +140,7 @@ async def _merge_images(args: dict[str, Any]) -> str:
     paths = args.get("image_paths") or []
     if not isinstance(paths, list) or len(paths) < 2:
         return json.dumps(
-            {"error": "image_paths cần ít nhất 2 đường dẫn ảnh"},
+            {"error": "image_paths requires at least 2 image paths"},
             ensure_ascii=False,
         )
 
@@ -151,7 +151,7 @@ async def _merge_images(args: dict[str, Any]) -> str:
         from PIL import Image
     except ImportError:
         return json.dumps(
-            {"error": "Thiếu Pillow — pip install pillow"},
+            {"error": "Missing Pillow — pip install pillow"},
             ensure_ascii=False,
         )
 
@@ -159,7 +159,7 @@ async def _merge_images(args: dict[str, Any]) -> str:
     for p in paths:
         path = Path(str(p))
         if not path.is_file():
-            return json.dumps({"error": f"Không tìm thấy ảnh: {p}"}, ensure_ascii=False)
+            return json.dumps({"error": f"Image not found: {p}"}, ensure_ascii=False)
         images.append(Image.open(path).convert("RGB"))
 
     if layout == "vertical":
@@ -203,7 +203,7 @@ def _init_builtin_registry() -> None:
             id="builtin-translate/translate_text",
             server_id="builtin-translate",
             name="translate_text",
-            description="Dịch văn bản sang ngôn ngữ đích (vi, en, ja, …).",
+            description="Translate text to a target language (vi, en, ja, …).",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -225,8 +225,8 @@ def _init_builtin_registry() -> None:
             server_id="builtin-ocr",
             name="ocr_extract",
             description=(
-                "OCR ảnh — Tesseract nếu có, không thì LLM vision (Azure GPT-4o). "
-                "Dùng image_base64 từ chat upload."
+                "Image OCR — Tesseract when available, otherwise LLM vision (Azure GPT-4o). "
+                "Use image_base64 from chat uploads."
             ),
             input_schema={
                 "type": "object",
@@ -247,7 +247,7 @@ def _init_builtin_registry() -> None:
             id="builtin-image/merge_images",
             server_id="builtin-image",
             name="merge_images",
-            description="Ghép nhiều ảnh theo hàng ngang hoặc dọc.",
+            description="Merge multiple images horizontally or vertically.",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -268,7 +268,7 @@ def _init_builtin_registry() -> None:
             id="sql-server/list_tables",
             server_id="sql-server",
             name="list_tables",
-            description="Liệt kê bảng PostgreSQL (read-only).",
+            description="List PostgreSQL tables (read-only).",
             input_schema={"type": "object", "properties": {}},
             kind="internal",
         ),
@@ -281,7 +281,7 @@ def _init_builtin_registry() -> None:
             id="sql-server/execute_query",
             server_id="sql-server",
             name="execute_query",
-            description="Chạy SELECT read-only.",
+            description="Run a read-only SELECT.",
             input_schema={
                 "type": "object",
                 "properties": {"sql": {"type": "string"}},
@@ -298,7 +298,7 @@ def _init_builtin_registry() -> None:
             id="search-server/search_documents",
             server_id="search-server",
             name="search_documents",
-            description="Tìm knowledge base + web.",
+            description="Search knowledge base + web.",
             input_schema={
                 "type": "object",
                 "properties": {

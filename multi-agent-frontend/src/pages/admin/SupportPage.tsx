@@ -2,16 +2,16 @@ import { MaterialIcon } from '../../components/ui/MaterialIcon'
 
 const faqs = [
   {
-    q: 'Làm thế nào để thêm nguồn dữ liệu mới cho Agent?',
-    a: "Để thêm nguồn dữ liệu mới, điều hướng đến tab 'Knowledge' trong Sidebar. Nhấp vào nút 'Add Source', chọn loại dữ liệu (PDF, URL, Text) và làm theo hướng dẫn trên màn hình.",
+    q: 'How do I add a new data source for an agent?',
+    a: "To add a new data source, go to the 'Knowledge' tab in the sidebar. Click 'Add Source', choose the data type (PDF, URL, Text), and follow the on-screen instructions.",
   },
   {
-    q: 'Tại sao Agent phản hồi sai thông tin dù đã cung cấp tài liệu?',
-    a: "Vui lòng kiểm tra lại tab 'Audit' để xem nhật ký truy xuất. Có thể tài liệu bị phân mảnh chưa tốt (chunking) hoặc Prompt cấu hình chưa đủ chặt chẽ.",
+    q: 'Why does the agent respond with incorrect information even after I uploaded documents?',
+    a: "Check the 'Audit' tab for retrieval logs. The documents may be poorly chunked, or the configured prompt may not be strict enough.",
   },
   {
-    q: 'Cách giới hạn quyền truy cập của User vào một số Agent cụ thể?',
-    a: "Bạn có thể quản lý quyền truy cập trong phần 'Models' -> 'Access Control'. Tại đây, bạn có thể gán các Agent cụ thể cho các nhóm người dùng dựa trên ID hoặc Role.",
+    q: 'How do I restrict user access to specific agents?',
+    a: "Manage access under 'Models' -> 'Access Control'. There you can assign specific agents to user groups based on ID or role.",
   },
 ]
 
@@ -19,9 +19,9 @@ export function SupportPage() {
   return (
     <div className="p-margin-page">
       <header className="mb-10">
-        <h1 className="mb-2 text-display-lg text-primary">Trợ giúp &amp; Hỗ trợ</h1>
+        <h1 className="mb-2 text-display-lg text-primary">Help &amp; Support</h1>
         <p className="max-w-2xl text-body-lg text-on-surface-variant">
-          Tìm kiếm câu trả lời cho các vấn đề thường gặp hoặc gửi yêu cầu hỗ trợ trực tiếp đến đội ngũ kỹ thuật.
+          Find answers to common issues or send a support request directly to the engineering team.
         </p>
       </header>
 
@@ -31,15 +31,15 @@ export function SupportPage() {
             <MaterialIcon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
               type="text"
-              placeholder="Tìm kiếm tài liệu, lỗi hoặc câu hỏi..."
+              placeholder="Search docs, errors, or questions..."
               className="w-full rounded-xl border border-border-subtle bg-surface py-4 pr-4 pl-12 text-body-md text-on-surface shadow-sm transition-all placeholder:text-on-surface-variant focus:border-transparent focus:ring-2 focus:ring-secondary focus:outline-none"
             />
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {[
-              { icon: 'menu_book', title: 'Tài liệu Quản trị', desc: 'Hướng dẫn chi tiết cách cấu hình và quản lý Agent.' },
-              { icon: 'api', title: 'API Integration', desc: 'Tài liệu kỹ thuật về việc tích hợp Agent vào hệ thống của bạn.' },
+              { icon: 'menu_book', title: 'Admin Documentation', desc: 'Detailed guides for configuring and managing agents.' },
+              { icon: 'api', title: 'API Integration', desc: 'Technical documentation for integrating agents into your system.' },
             ].map((card) => (
               <a
                 key={card.title}
@@ -61,7 +61,7 @@ export function SupportPage() {
             <div className="border-b border-border-subtle p-6">
               <h2 className="flex items-center gap-2 text-headline-sm text-primary">
                 <MaterialIcon name="forum" className="text-secondary" />
-                Câu hỏi thường gặp (FAQ)
+                Frequently Asked Questions (FAQ)
               </h2>
             </div>
             <div className="divide-y divide-border-subtle">
@@ -82,36 +82,36 @@ export function SupportPage() {
           <div className="sticky top-6 rounded-xl border border-border-subtle bg-surface p-6">
             <h2 className="mb-6 flex items-center gap-2 text-headline-sm text-primary">
               <MaterialIcon name="support_agent" className="text-secondary" />
-              Gửi yêu cầu hỗ trợ
+              Submit support request
             </h2>
             <form className="space-y-4">
               <div>
-                <label className="mb-1 block text-label-sm text-on-surface-variant">Loại vấn đề</label>
+                <label className="mb-1 block text-label-sm text-on-surface-variant">Issue type</label>
                 <select className="w-full rounded-lg border border-border-subtle bg-surface px-3 py-2 text-body-md text-on-surface focus:border-transparent focus:ring-2 focus:ring-secondary focus:outline-none">
-                  <option>Lỗi hệ thống (Bugs)</option>
-                  <option>Cấu hình Agent</option>
-                  <option>Thanh toán &amp; Hóa đơn</option>
-                  <option>Khác</option>
+                  <option>System bug</option>
+                  <option>Agent configuration</option>
+                  <option>Billing &amp; invoices</option>
+                  <option>Other</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-label-sm text-on-surface-variant">Mức độ ưu tiên</label>
+                <label className="mb-1 block text-label-sm text-on-surface-variant">Priority</label>
                 <div className="mt-2 flex gap-4">
                   <label className="flex cursor-pointer items-center gap-2">
                     <input type="radio" name="priority" defaultChecked className="text-secondary focus:ring-secondary" />
-                    <span className="text-body-md text-on-surface">Bình thường</span>
+                    <span className="text-body-md text-on-surface">Normal</span>
                   </label>
                   <label className="flex cursor-pointer items-center gap-2">
                     <input type="radio" name="priority" className="text-error focus:ring-error" />
-                    <span className="text-body-md text-on-surface">Khẩn cấp</span>
+                    <span className="text-body-md text-on-surface">Urgent</span>
                   </label>
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-label-sm text-on-surface-variant">Mô tả chi tiết</label>
+                <label className="mb-1 block text-label-sm text-on-surface-variant">Details</label>
                 <textarea
                   rows={4}
-                  placeholder="Mô tả lỗi hoặc câu hỏi của bạn..."
+                  placeholder="Describe the issue or your question..."
                   className="w-full resize-none rounded-lg border border-border-subtle bg-surface px-3 py-2 text-body-md text-on-surface focus:border-transparent focus:ring-2 focus:ring-secondary focus:outline-none"
                 />
                 <div className="mt-1 text-right text-label-sm text-on-surface-variant">0/500</div>
@@ -120,13 +120,13 @@ export function SupportPage() {
                 type="button"
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary hover:bg-inverse-surface"
               >
-                Gửi yêu cầu
+                Submit request
                 <MaterialIcon name="send" size={18} />
               </button>
             </form>
             <div className="mt-6 border-t border-border-subtle pt-6">
               <p className="text-center text-label-sm text-on-surface-variant">
-                Thời gian phản hồi dự kiến: <strong className="text-on-surface">2-4 giờ làm việc</strong>
+                Expected response time: <strong className="text-on-surface">2–4 business hours</strong>
               </p>
             </div>
           </div>

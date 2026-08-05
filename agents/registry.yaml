@@ -8,8 +8,8 @@ agents:
   - id: general-agent
     name: General Assistant
     description: >
-      Trợ lý đa năng — giải thích, viết, brainstorm, Q&A, tóm tắt.
-      Dùng cho mọi yêu cầu KHÔNG cần query DB, search tài liệu, hay action.
+      Versatile assistant — explain, write, brainstorm, Q&A, summarize.
+      Use for any request that does NOT require DB query, document search, or actions.
     skills:
       - general-assistant
     tools: []
@@ -19,7 +19,7 @@ agents:
   - id: db-worker
     name: DB Worker
     description: >
-      Truy vấn PostgreSQL read-only — số liệu, bản ghi, thống kê, báo cáo.
+      Read-only PostgreSQL queries — metrics, records, statistics, reports.
     skills:
       - database-query
     tools:
@@ -30,7 +30,7 @@ agents:
   - id: research-worker
     name: Research Worker
     description: >
-      Tìm kiếm thông tin — tài liệu nội bộ, knowledge base, web search.
+      Information search — internal documents, knowledge base, web search.
     skills:
       - document-research
     tools:
@@ -41,8 +41,8 @@ agents:
   - id: legal-agent
     name: Legal Domain Agent
     description: >
-      Chuyên gia domain PHÁP LUẬT — tra cứu văn bản, điều khoản, phân tích hợp đồng.
-      CHỈ dùng khi request liên quan pháp lý.
+      LEGAL domain expert — look up regulations, clauses, contract analysis.
+      Use ONLY when the request is legally related.
     skills:
       - legal-research
     tools:
@@ -54,7 +54,7 @@ agents:
   - id: action-worker
     name: Action Worker
     description: >
-      Thực thi tool MCP — dịch, OCR, ghép ảnh, fetch URL, gửi email/API.
+      Execute MCP tools — translate, OCR, merge images, fetch URL, send email/API.
     skills: []
     tools:
       - builtin-translate
@@ -68,7 +68,7 @@ agents:
   - id: code-worker
     name: Code Worker
     description: >
-      Viết/chạy code, ETL, transform dữ liệu (Phase 2+).
+      Write/run code, ETL, data transforms (Phase 2+).
     skills: []
     tools:
       - code-interpreter
@@ -77,7 +77,7 @@ agents:
 
   - id: default-agent
     name: Default Agent
-    description: Fallback khi không match agent nào.
+    description: Fallback when no agent matches.
     skills: []
     tools: []
     model: fast

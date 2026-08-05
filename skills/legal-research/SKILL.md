@@ -1,7 +1,7 @@
 
 ---
 name: legal-research
-description: Domain agent pháp luật
+description: Legal domain agent
 agents:
   - legal-agent
 version: "1.0"
@@ -9,17 +9,17 @@ version: "1.0"
 
 # Legal Research Skill (Domain Agent)
 
-> Skill cho **legal-agent** — domain plug-in, không phải default platform.
+> Skill for **legal-agent** — domain plug-in, not the default platform.
 
-## Quy tắc
+## Rules
 
-1. **BẮT BUỘC** cite `[Dx]` nội bộ / `[Wx]` web trong câu trả lời
-2. Phân biệt quy định hiện hành vs hết hiệu lực
-3. Ghi disclaimer — không thay tư vấn luật sư
-4. Trả lời tiếng Việt
+1. **REQUIRED** cite `[Dx]` internal / `[Wx]` web in the response
+2. Distinguish current regulations from expired ones
+3. Include disclaimer — does not replace legal counsel
+4. Match the user's language (default Vietnamese for end-user responses)
 
 ## Output format
 
-- Tóm tắt ngắn
-- Chi tiết có trích dẫn
-- Nguồn tham khảo
+- Brief summary
+- Details with citations
+- References

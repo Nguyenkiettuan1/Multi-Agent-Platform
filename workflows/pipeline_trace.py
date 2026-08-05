@@ -57,19 +57,19 @@ def triage_steps(triage) -> list[PipelineStep]:
             done_step(
                 phase="triage",
                 agent="triage",
-                title="Kiểm tra bảo mật",
-                detail=f"Chặn: {triage.block_reason}",
+                title="Security check",
+                detail=f"Blocked: {triage.block_reason}",
             )
         ]
     return [
         done_step(
             phase="triage",
             agent="triage",
-            title="Phân loại intent",
+            title="Classify intent",
             detail=(
                 f"Intent: {triage.intent.value} · "
-                f"Độ phức tạp: {triage.complexity:.0%} · "
-                f"Fast path: {'có' if triage.fast_path else 'không'}"
+                f"Complexity: {triage.complexity:.0%} · "
+                f"Fast path: {'yes' if triage.fast_path else 'no'}"
             ),
         )
     ]
@@ -77,14 +77,14 @@ def triage_steps(triage) -> list[PipelineStep]:
 
 def plan_steps(plan) -> list[PipelineStep]:
     if plan.is_greeting:
-        return [skipped_step(phase="plan", title="Lập kế hoạch", detail="Chào hỏi — bỏ qua planner")]
+        return [skipped_step(phase="plan", title="Planning", detail="Greeting — planner skipped")]
 
     agents = [t.assigned_agent.value for t in plan.subtasks]
     return [
         done_step(
             phase="plan",
             agent="meta-planner",
-            title="Lập kế hoạch agents",
+            title="Plan agents",
             detail=(
                 f"Topology: {plan.topology_mode.value} · "
                 f"Agents: {', '.join(agents) or '—'}"
@@ -98,7 +98,7 @@ def worker_running_steps(tasks) -> list[PipelineStep]:
         running_step(
             phase="worker",
             agent=task.assigned_agent.value,
-            title=f"Đang chạy {format_agent_label(task.assigned_agent)}",
+            title=f"Running {format_agent_label(task.assigned_agent)}",
             detail=task.description[:200],
         )
         for task in tasks
@@ -110,13 +110,13 @@ def worker_done_steps(results: list[WorkerResult]) -> list[PipelineStep]:
     for r in results:
         cite_count = len(r.citations)
         tool_text = ", ".join(r.tools_called) if r.tools_called else "—"
-        status = "Thành công" if r.success else "Lỗi"
+        status = "Success" if r.success else "Error"
         steps.append(
             done_step(
                 phase="worker",
                 agent=r.agent.value,
                 title=format_agent_label(r.agent),
-                detail=f"{status} · Tools: {tool_text} · Nguồn: {cite_count}",
+                detail=f"{status} · Tools: {tool_text} · Sources: {cite_count}",
                 tools=list(r.tools_called),
             )
         )
@@ -125,26 +125,26 @@ def worker_done_steps(results: list[WorkerResult]) -> list[PipelineStep]:
 
 def review_steps(status: str, notes: str) -> list[PipelineStep]:
     if status == "skipped":
-        return [skipped_step(phase="review", title="Reviewer", detail=notes or "Bỏ qua review")]
+        return [skipped_step(phase="review", title="Reviewer", detail=notes or "Review skipped")]
     return [
         done_step(
             phase="review",
             agent="reviewer",
-            title="Reviewer kiểm tra",
-            detail=f"Kết quả: {status}" + (f" — {notes}" if notes else ""),
+            title="Reviewer check",
+            detail=f"Result: {status}" + (f" — {notes}" if notes else ""),
         )
     ]
 
 
 def synthesize_steps(skipped: bool = False) -> list[PipelineStep]:
     if skipped:
-        return [skipped_step(phase="synthesize", title="Synthesizer", detail="Fast path — dùng output worker")]
+        return [skipped_step(phase="synthesize", title="Synthesizer", detail="Fast path — using worker output")]
     return [
         done_step(
             phase="synthesize",
             agent="synthesizer",
-            title="Tổng hợp câu trả lời",
-            detail="Gộp kết quả agents thành response cuối",
+            title="Synthesize response",
+            detail="Merge agent results into final response",
         )
     ]
 
@@ -156,8 +156,8 @@ def eval_steps(eval_result) -> list[PipelineStep]:
         done_step(
             phase="eval",
             agent="evaluator",
-            title="Đánh giá chất lượng",
-            detail=f"Điểm: {eval_result.score:.0%} · {'Đạt' if eval_result.passed else 'Chưa đạt'}",
+            title="Quality evaluation",
+            detail=f"Score: {eval_result.score:.0%} · {'Passed' if eval_result.passed else 'Failed'}",
         )
     ]
 
@@ -173,27 +173,27 @@ def predict_next_phase(current: str, state: dict) -> tuple[str, str] | None:
 
     if current == "triage":
         if triage and getattr(triage, "blocked", False):
-            return ("eval", "Đánh giá & hoàn tất")
-        return ("plan", "Lập kế hoạch agents")
+            return ("eval", "Evaluate & finalize")
+        return ("plan", "Plan agents")
 
     if current == "plan":
-        return ("worker", "Chạy agents")
+        return ("worker", "Run agents")
 
     if current == "execute_workers":
         if triage and triage.skip_synthesize and state.get("final_response"):
-            return ("eval", "Đánh giá & hoàn tất")
+            return ("eval", "Evaluate & finalize")
         if triage and triage.skip_review:
-            return ("synthesize", "Tổng hợp câu trả lời")
+            return ("synthesize", "Synthesize response")
         mode = state.get("topology_mode", "planned")
         if mode in ("reviewed", "council"):
-            return ("review", "Reviewer kiểm tra")
-        return ("synthesize", "Tổng hợp câu trả lời")
+            return ("review", "Reviewer check")
+        return ("synthesize", "Synthesize response")
 
     if current == "review":
-        return ("synthesize", "Tổng hợp câu trả lời")
+        return ("synthesize", "Synthesize response")
 
     if current == "synthesize":
-        return ("eval", "Đánh giá & hoàn tất")
+        return ("eval", "Evaluate & finalize")
 
     return None
 
@@ -222,7 +222,7 @@ def steps_from_node(node_name: str, output: dict, state: dict) -> list[PipelineS
     if node_name == "synthesize":
         if output.get("final_response"):
             return synthesize_steps(skipped=False)
-        return [skipped_step(phase="synthesize", title="Synthesizer", detail="Đã có response")]
+        return [skipped_step(phase="synthesize", title="Synthesizer", detail="Response already available")]
 
     if node_name == "eval":
         return eval_steps(output.get("eval_result"))

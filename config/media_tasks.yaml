@@ -1,17 +1,17 @@
-# Media task routing — mô tả task + tool mapping (KHÔNG dùng keyword cố định).
-# Phân loại task: LLM tại plan stage (core/planning/llm_media_classifier.py).
+# Media task routing — task descriptions + tool mapping (no hardcoded keywords).
+# Task classification: LLM at plan stage (core/planning/llm_media_classifier.py).
 # Tool ID = {server_id}/{tool_name}
 
 defaults:
   image_mime_prefix: image/
   min_ocr_text_chars: 10
-  image_only_message: "Đọc thông tin trong ảnh đính kèm"
+  image_only_message: "Read information from the attached image"
   upload_subdir: data/chat-uploads
 
 task_kinds:
   ocr:
     description: >
-      Đọc chữ, số, bảng biểu từ ảnh/PDF scan — hóa đơn, chứng từ, screenshot, tài liệu chụp.
+      Read text, numbers, and tables from images/PDF scans — invoices, receipts, screenshots, photographed documents.
     agent: action-worker
     tools:
       primary:
@@ -24,7 +24,7 @@ task_kinds:
 
   translate:
     description: >
-      Dịch văn bản sang ngôn ngữ khác (vi, en, ja, …).
+      Translate text to another language (vi, en, ja, …).
     agent: action-worker
     tools:
       primary:
@@ -33,7 +33,7 @@ task_kinds:
 
   merge_images:
     description: >
-      Ghép nhiều ảnh thành một (ngang/dọc).
+      Merge multiple images into one (horizontal or vertical).
     agent: action-worker
     tools:
       primary:

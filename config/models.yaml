@@ -3,9 +3,9 @@
 # Ref: LiteLLM (catalog + fallbacks), OpenRouter (multi-provider proxy)
 # =============================================================================
 #
-# Đây là LỚP 1 — chỉ định nghĩa providers, catalog model, profiles, fallbacks.
-# KHÔNG gán model cho agent ở đây → xem agents/registry.yaml (Lớp 2)
-# KHÔNG gán model cho pipeline → xem agents/orchestrator/agent.yaml (Lớp 3)
+# This is LAYER 1 — defines providers, model catalog, profiles, and fallbacks only.
+# Do NOT assign models to agents here → see agents/registry.yaml (Layer 2)
+# Do NOT assign models to pipeline nodes → see agents/orchestrator/agent.yaml (Layer 3)
 
 providers:
   openrouter:
@@ -32,7 +32,7 @@ providers:
     base_url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key_env: GOOGLE_API_KEY
 
-# --- Catalog: thêm model mới tại đây ---
+# --- Catalog: add new models here ---
 models:
   or-gpt-4o-mini:
     provider: openrouter
@@ -101,7 +101,7 @@ models:
     temperature: 0.3
     tags: [balanced]
 
-# Profiles — alias tiện lợi (Swarm/CrewAI style shorthand)
+# Profiles — convenient aliases (Swarm/CrewAI style shorthand)
 profiles:
   fast: or-gpt-4o-mini
   balanced: or-claude-sonnet
@@ -111,7 +111,7 @@ profiles:
 default_model: or-gpt-4o-mini
 
 # Global fallback chains — LiteLLM pattern
-# Khi primary model lỗi/rate-limit → thử lần lượt
+# When the primary model fails or is rate-limited → try in order
 fallbacks:
   or-claude-sonnet: [az-gpt-4.1, az-gpt-4o-mini, or-gpt-4o-mini, or-deepseek]
   or-gpt-4o-mini: [az-gpt-4o-mini, or-deepseek]

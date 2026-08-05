@@ -1,6 +1,3 @@
-> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
-> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
-
 # Enterprise Multi-Agent AI Platform — Frontend Design Brief
 
 > **Document version:** 2.0  

@@ -1,4 +1,4 @@
-"""LLM phân loại media task — không dùng keyword cố định."""
+"""LLM media task classifier — no hardcoded keywords."""
 
 from __future__ import annotations
 
@@ -29,26 +29,26 @@ class MediaClassification:
 def _build_classifier_prompt() -> str:
     kinds = list_task_kinds()
     lines = [
-        "Bạn là Media Task Classifier trong pipeline multi-agent.",
-        "Phân loại yêu cầu user dựa trên TIN NHẮN + FILE ĐÍNH KÈM (metadata).",
-        "Không dựa vào từ khóa cứng — hiểu ngữ cảnh tự nhiên (tiếng Việt/Anh, có/không dấu).",
+        "You are a Media Task Classifier in a multi-agent pipeline.",
+        "Classify the user request based on MESSAGE + ATTACHMENTS (metadata).",
+        "Do not rely on hardcoded keywords — understand natural context (Vietnamese/English, with/without diacritics).",
         "",
-        "Các loại task khả dụng:",
+        "Available task kinds:",
     ]
     for kind, cfg in kinds.items():
         desc = str(cfg.get("description", "")).strip().replace("\n", " ")
         lines.append(f"- `{kind}`: {desc}")
     lines.extend(
         [
-            "- `none`: không thuộc các loại trên (vd. hỏi đáp chung về ảnh, không cần tool).",
+            "- `none`: none of the above (e.g. general Q&A about an image, no tool needed).",
             "",
-            "Quy tắc:",
-            "- Có ảnh đính kèm + user muốn đọc/lấy thông tin/chữ số → thường là `ocr`.",
-            "- User muốn dịch văn bản (có hoặc không ảnh) → `translate`.",
-            "- Nhiều ảnh + user muốn ghép → `merge_images`.",
-            "- `high_accuracy`: true khi cần OCR chính xác cao (hóa đơn scan, bảng biểu, chữ nhỏ, ảnh mờ).",
+            "Rules:",
+            "- Image attached + user wants to read/extract text or numbers → usually `ocr`.",
+            "- User wants to translate text (with or without image) → `translate`.",
+            "- Multiple images + user wants to merge → `merge_images`.",
+            "- `high_accuracy`: true when high-precision OCR is needed (scanned invoices, tables, small text, blurry images).",
             "",
-            "Trả JSON:",
+            "Return JSON:",
             "{",
             '  "task_kind": "ocr|translate|merge_images|none",',
             '  "high_accuracy": false,',
@@ -81,9 +81,9 @@ async def classify_media_task_llm(
             "role": "user",
             "content": (
                 f"{history_block}"
-                f"## User message\n{message or '(không có text — chỉ đính kèm file)'}\n\n"
+                f"## User message\n{message or '(no text — attachment only)'}\n\n"
                 f"## Attachments\n{attach_block}\n\n"
-                "Phân loại task_kind JSON."
+                "Classify task_kind as JSON."
             ),
         },
     ]
@@ -117,7 +117,7 @@ def infer_task_kind_structural(
     message: str,
     attachments: list[dict] | None = None,
 ) -> MediaClassification | None:
-    """Fallback không LLM — chỉ dựa cấu trúc (mime, số file), không keyword."""
+    """Non-LLM fallback — structure only (mime, file count), no keywords."""
     if not attachments:
         return None
 

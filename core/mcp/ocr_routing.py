@@ -1,4 +1,4 @@
-"""OCR routing — đọc config/media_tasks.yaml."""
+"""OCR routing — reads config/media_tasks.yaml."""
 
 from __future__ import annotations
 
@@ -74,12 +74,12 @@ def ocr_routing_hint_for_llm() -> str:
     builtin = primary_ocr_tool_id()
     mcp = fallback_ocr_tool_id()
     lines = [
-        "OCR — chọn tool:",
-        f"- `{builtin}`: mặc định (Tesseract → Azure Vision).",
+        "OCR — choose a tool:",
+        f"- `{builtin}`: default (Tesseract → Azure Vision).",
     ]
     if mcp:
-        lines.append(f"- `{mcp}`: fallback chính xác cao khi planner yêu cầu.")
-    lines.append("Phân loại task do planner LLM quyết định — không cần đoán keyword.")
+        lines.append(f"- `{mcp}`: high-accuracy fallback when the planner requests it.")
+    lines.append("Task classification is decided by the planner LLM — no keyword guessing needed.")
     return "\n".join(lines)
 
 

@@ -55,7 +55,7 @@ class ChatRequest(BaseModel):
     @model_validator(mode="after")
     def require_message_or_attachment(self) -> "ChatRequest":
         if not self.message.strip() and not self.attachments:
-            raise ValueError("Cần tin nhắn hoặc file đính kèm")
+            raise ValueError("Message or attachment required")
         return self
 
 
@@ -148,7 +148,7 @@ async def list_models(_: str | None = Depends(verify_api_key)):
 
 @app.get("/api/v1/mcp/catalog")
 async def mcp_catalog(_: str | None = Depends(verify_api_key)):
-    """Danh sách MCP server + tools cho app runtime (chat agents)."""
+    """List MCP servers + tools for app runtime (chat agents)."""
     from core.mcp.hub import format_tools_for_llm, get_tool_hub
 
     hub = get_tool_hub()
@@ -313,7 +313,7 @@ async def admin_chunk_preview(
     request: ChunkPreviewRequest,
     _: str | None = Depends(verify_api_key),
 ):
-    """Xem trước chunks + quality score — KHÔNG ghi DB."""
+    """Preview chunks + quality score — does NOT write to DB."""
     from core.search.ingestion import preview_document
 
     return preview_document(
@@ -329,7 +329,7 @@ async def admin_chunk_eval(
     request: ChunkEvalRequest,
     _: str | None = Depends(verify_api_key),
 ):
-    """Dry-run: embed query và score từng chunk — kiểm tra chunking có hợp lý không."""
+    """Dry-run: embed query and score each chunk — check if chunking is reasonable."""
     from core.search.chunking import chunk_text
     from core.search.ingestion import evaluate_chunks_for_query, preview_document
 
@@ -355,15 +355,15 @@ async def admin_chunk_eval(
 
 def _chunk_eval_recommendation(rankings: list[dict], analysis: dict) -> str:
     if not rankings or rankings[0].get("score") is None:
-        return "Cần OPENROUTER_API_KEY hoặc OPENAI_API_KEY để đánh giá semantic."
+        return "OPENROUTER_API_KEY or OPENAI_API_KEY required for semantic evaluation."
     top = rankings[0].get("score", 0)
     if top < 0.5:
-        return "Score thấp — thử giảm chunk_size, tăng overlap, hoặc kiểm tra nội dung query."
+        return "Low score — try reducing chunk_size, increasing overlap, or check query content."
     if analysis.get("quality_score", 1) < 0.7:
-        return "Chunking chất lượng thấp — xem warnings và chỉnh chunk_size/overlap."
+        return "Low chunking quality — see warnings and adjust chunk_size/overlap."
     if len(rankings) > 1 and rankings[0].get("score", 0) - rankings[1].get("score", 0) < 0.05:
-        return "Nhiều chunk score gần nhau — có thể overlap quá nhiều hoặc chunk quá giống nhau."
-    return "Chunking ổn — chunk top-1 khớp query tốt."
+        return "Multiple chunks with similar scores — overlap may be too high or chunks too similar."
+    return "Chunking looks good — top chunk matches query well."
 
 
 @app.post("/api/v1/admin/knowledge/upload")
@@ -376,7 +376,7 @@ async def admin_upload_knowledge(
     preview_only: bool = Form(False),
     _: str | None = Depends(verify_api_key),
 ):
-    """Upload PDF/DOCX/TXT → chunk → embed → store. preview_only=true chỉ xem chunks."""
+    """Upload PDF/DOCX/TXT → chunk → embed → store. preview_only=true returns chunks only."""
     from core.search.ingestion import ingest_file_bytes, preview_document
     from core.search.parsers import parse_file
 

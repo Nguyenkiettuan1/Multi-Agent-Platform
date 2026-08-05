@@ -11,7 +11,7 @@ from core.planning.media_tasks import upload_dir
 
 
 def materialize_attachments(attachments: list[dict] | None) -> list[dict]:
-    """Ghi base64 ra disk; giữ metadata cho LangGraph checkpoint."""
+    """Write base64 to disk; keep metadata for LangGraph checkpoint."""
     if not attachments:
         return []
 
@@ -50,7 +50,7 @@ def materialize_attachments(attachments: list[dict] | None) -> list[dict]:
 
 
 def ensure_file_path(arguments: dict[str, Any], *, prefix: str = "chat-ocr-") -> dict[str, Any]:
-    """Ghi base64 ra file tạm nếu MCP ngoài chỉ nhận path."""
+    """Write base64 to a temp file when external MCP only accepts a path."""
     args = dict(arguments)
     if args.get("file_path") or args.get("image_path"):
         if args.get("file_path") and not args.get("image_path"):

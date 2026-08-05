@@ -32,7 +32,7 @@ async def plan_with_llm(user_message: str) -> TaskPlan | None:
             "content": (
                 f"## Agent fleet\n{registry_text}\n\n"
                 f"## User request\n{user_message}\n\n"
-                "Tạo TaskPlan JSON."
+                "Produce TaskPlan JSON."
             ),
         },
     ]

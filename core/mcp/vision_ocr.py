@@ -1,4 +1,4 @@
-"""OCR qua LLM vision — fallback khi Tesseract/PaddleOCR chưa cài."""
+"""OCR via LLM vision — fallback when Tesseract/PaddleOCR is not installed."""
 
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ _VISION_MODEL_REFS = (
 )
 
 _OCR_PROMPT = (
-    "Trích xuất TOÀN BỘ văn bản trong ảnh (hóa đơn, tài liệu scan). "
-    "Giữ cấu trúc: tiêu đề, bảng (cột cách nhau bằng |), số tiền, ngày tháng. "
-    "Chỉ trả nội dung đọc được — không giải thích, không hướng dẫn cài phần mềm."
+    "Extract ALL text from the image (invoices, scanned documents). "
+    "Preserve structure: headings, tables (columns separated by |), amounts, dates. "
+    "Return only the readable content — no explanations, no software install instructions."
 )
 
 
@@ -33,7 +33,7 @@ async def extract_text_from_image_base64(
     *,
     mime_type: str = "image/png",
 ) -> str:
-    """Gọi model vision (ưu tiên Azure) — dùng khi không có Tesseract."""
+    """Call a vision model (Azure preferred) — used when Tesseract is unavailable."""
     raw = image_base64.split(",")[-1].strip()
     if not raw:
         return ""

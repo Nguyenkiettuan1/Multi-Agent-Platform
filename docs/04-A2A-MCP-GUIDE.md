@@ -1,11 +1,8 @@
-> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
-> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
-
-# A2A & MCP — Hướng dẫn triển khai
+# A2A & MCP — Implementation Guide
 
 ## 1. MCP Server Development
 
-### Cấu trúc MCP server
+### MCP server structure
 
 ```
 mcp-servers/sql-server/
@@ -21,30 +18,30 @@ mcp-servers/sql-server/
 
 ### Transport modes
 
-| Mode | Dùng khi | Protocol |
+| Mode | Use when | Protocol |
 |------|----------|----------|
 | **stdio** | Local dev, Cursor IDE | stdin/stdout |
 | **SSE** | Remote, single client | HTTP Server-Sent Events |
 | **Streamable HTTP** | Production, scalable | HTTP POST + SSE |
 
-### Kết nối MCP với Foundry Agent
+### Connecting MCP to a Foundry Agent
 
 ```bash
-# 1. Deploy MCP server (container hoặc Azure Functions)
-# 2. Tạo connection
+# 1. Deploy MCP server (container or Azure Functions)
+# 2. Create connection
 azd ai connection create \
   --kind remote-tool \
   --target https://your-mcp-server.example.com/mcp \
   --auth-type managed-identity
 
-# 3. Thêm vào toolbox
+# 3. Add to toolbox
 azd ai toolbox add \
   --tool mcp \
   --connection <connection-id> \
   --name sql-tools
 ```
 
-### Kết nối MCP với Cursor IDE (dev)
+### Connecting MCP to Cursor IDE (dev)
 
 File `.cursor/mcp.json`:
 ```json
@@ -65,9 +62,9 @@ File `.cursor/mcp.json`:
 
 ## 2. A2A Setup
 
-### Bước 1: Enable A2A trên target agent
+### Step 1: Enable A2A on the target agent
 
-Với Foundry hosted agent, A2A endpoint tự động available tại:
+For a Foundry hosted agent, the A2A endpoint is automatically available at:
 ```
 https://<account>.services.ai.azure.com/api/projects/<project>/agents/<agent-name>/endpoint/protocols/a2a
 ```
@@ -78,7 +75,7 @@ curl -H "Authorization: Bearer $TOKEN" \
   "$A2A_ENDPOINT/agentCard/v1.0"
 ```
 
-### Bước 2: Tạo RemoteA2A connection
+### Step 2: Create a RemoteA2A connection
 
 ```bash
 azd ai connection create \
@@ -88,42 +85,42 @@ azd ai connection create \
   --name db-agent-a2a
 ```
 
-### Bước 3: Gắn A2A tool vào orchestrator
+### Step 3: Attach A2A tools to the orchestrator
 
-Trong `azure.yaml` hoặc toolbox config:
+In `azure.yaml` or toolbox config:
 ```yaml
 tools:
   - type: a2a_preview
     name: db-agent
     connection: db-agent-a2a
-    description: "Truy vấn database. Dùng khi user hỏi về dữ liệu, số liệu, bản ghi."
+    description: "Query the database. Use when the user asks about data, metrics, or records."
   - type: a2a_preview
     name: research-agent
     connection: research-agent-a2a
-    description: "Tìm kiếm tài liệu, hợp đồng, quy định. Dùng khi cần tra cứu thông tin."
+    description: "Search documents, contracts, and regulations. Use when information lookup is needed."
 ```
 
-### Bước 4: Orchestrator system prompt
+### Step 4: Orchestrator system prompt
 
 ```markdown
-Bạn là Orchestrator Agent. Bạn KHÔNG tự query database hay search.
-Bạn điều phối các agent chuyên biệt:
+You are the Orchestrator Agent. You do NOT query the database or search on your own.
+You coordinate specialized agents:
 
-- **db-agent**: Gọi khi cần dữ liệu từ database (số liệu, danh sách, thống kê)
-- **research-agent**: Gọi khi cần tìm tài liệu, tra cứu quy định, giải thích khái niệm
+- **db-agent**: Call when data from the database is needed (metrics, lists, statistics)
+- **research-agent**: Call when documents, regulations, or concept explanations are needed
 
-Quy tắc:
-1. Phân tích request → xác định agent(s) cần gọi
-2. Có thể gọi nhiều agent song song nếu tasks độc lập
-3. Tổng hợp kết quả từ agents thành response cuối cho user
-4. Nếu không chắc, hỏi lại user thay vì đoán
+Rules:
+1. Analyze the request → determine which agent(s) to call
+2. You may call multiple agents in parallel if tasks are independent
+3. Synthesize results from agents into the final response for the user
+4. If unsure, ask the user instead of guessing
 ```
 
 ---
 
-## 3. Self-hosted A2A (ngoài Foundry)
+## 3. Self-hosted A2A (outside Foundry)
 
-Nếu cần agent chạy self-hosted với A2A:
+If you need an agent running self-hosted with A2A:
 
 ```python
 # agents/db-agent/a2a_server.py
@@ -150,13 +147,13 @@ server = A2AServer(agent_card=card, handler=handle_request)
 
 ## 4. Testing MCP & A2A
 
-### Test MCP server độc lập
+### Test MCP server independently
 
 ```bash
-# Dùng MCP Inspector
+# Use MCP Inspector
 npx @modelcontextprotocol/inspector python mcp-servers/sql-server/server.py
 
-# Hoặc curl (SSE mode)
+# Or curl (SSE mode)
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
@@ -174,7 +171,7 @@ curl -X POST $A2A_ENDPOINT/tasks \
   -d '{
     "message": {
       "role": "user",
-      "parts": [{"type": "text", "text": "Có bao nhiêu hợp đồng active?"}]
+      "parts": [{"type": "text", "text": "How many active contracts are there?"}]
     }
   }'
 ```
@@ -185,7 +182,7 @@ curl -X POST $A2A_ENDPOINT/tasks \
 # tests/test_orchestrator_a2a.py
 async def test_orchestrator_calls_db_agent():
     response = await orchestrator.invoke(
-        "Có bao nhiêu khách hàng trong hệ thống?"
+        "How many customers are in the system?"
     )
     assert "db-agent" in response.tool_calls
     assert response.final_answer contains a number

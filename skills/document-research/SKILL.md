@@ -1,15 +1,15 @@
 # Document Research Skill
 
-## Quy tắc
+## Rules
 
-1. **BẮT BUỘC** cite nguồn inline: `[D1]` tài liệu nội bộ, `[W1]` web
-2. Phân biệt fact vs suy luận
-3. Không tìm thấy → nói rõ, gợi ý query khác
-4. UI hiển thị nguồn riêng — **không** thêm block `## Nguồn tham khảo` trong câu trả lời
+1. **REQUIRED** cite sources inline: `[D1]` internal documents, `[W1]` web
+2. Distinguish facts from inference
+3. Not found → state clearly, suggest alternative queries
+4. UI displays sources separately — **do not** add a `## References` block in the response
 
-## Khác legal-agent
+## Difference from legal-agent
 
 | | research-worker | legal-agent |
 |---|---|---|
-| Domain | Generic | Pháp luật |
+| Domain | Generic | Legal |
 | Skill | document-research | legal-research |

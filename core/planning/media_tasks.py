@@ -1,4 +1,4 @@
-"""Plan-stage media task — bind tool + attachment args (LLM classify, không keyword)."""
+"""Plan-stage media task — bind tool + attachment args (LLM classify, no keywords)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class ToolRef:
 
 @dataclass
 class MediaTaskPlan:
-    """Kết quả plan cho task có file/ảnh đính kèm."""
+    """Plan result for tasks with attached files/images."""
 
     task_kind: str
     tool_id: str
@@ -78,7 +78,7 @@ def has_image_attachments(attachments: list[dict] | None) -> bool:
 
 def format_attachment_summary(attachments: list[dict] | None) -> str:
     if not attachments:
-        return "(không có file đính kèm)"
+        return "(no attachments)"
     lines: list[str] = []
     for i, item in enumerate(attachments, 1):
         mime = str(item.get("mime_type", "unknown"))
@@ -92,7 +92,7 @@ def should_attempt_media_plan(
     message: str,
     attachments: list[dict] | None,
 ) -> bool:
-    """Có đủ tín hiệu để thử phân loại media (ảnh hoặc có text)."""
+    """Whether there is enough signal to attempt media classification (image or text)."""
     if has_image_attachments(attachments):
         return True
     if attachments:
@@ -105,7 +105,7 @@ def resolve_attachment_tool_args(
     *,
     message: str = "",
 ) -> dict[str, str]:
-    """Lấy file_path / image_base64 từ attachment đã materialize."""
+    """Get file_path / image_base64 from materialized attachment."""
     if attachments:
         for item in attachments:
             file_path = str(item.get("file_path", "")).strip()
@@ -157,7 +157,7 @@ def build_ocr_fallback_chain(
     available_tool_ids: set[str],
     high_accuracy: bool = False,
 ) -> list[str]:
-    """builtin trước → paddleocr (nếu high_accuracy + sẵn sàng) → MCP OCR khác."""
+    """builtin first → paddleocr (if high_accuracy + ready) → other MCP OCR."""
     ocr_cfg = list_task_kinds().get("ocr") or {}
     tools_cfg = ocr_cfg.get("tools") or {}
     chain: list[str] = []
@@ -325,7 +325,7 @@ def plan_media_action(
     *,
     available_tool_ids: set[str] | None = None,
 ) -> MediaTaskPlan | None:
-    """Sync fallback — chỉ structural (tests, LLM tắt)."""
+    """Sync fallback — structural only (tests, LLM off)."""
     from core.planning.llm_media_classifier import infer_task_kind_structural
 
     if not should_attempt_media_plan(message, attachments):
@@ -344,7 +344,7 @@ def plan_media_action(
 
 
 def image_only_default_message() -> str:
-    return str(media_defaults().get("image_only_message", "Đọc thông tin trong ảnh đính kèm"))
+    return str(media_defaults().get("image_only_message", "Read the information in the attached image"))
 
 
 def upload_dir() -> Path:

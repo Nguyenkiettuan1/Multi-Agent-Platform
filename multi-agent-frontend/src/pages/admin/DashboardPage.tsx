@@ -7,7 +7,7 @@ import { useAsync } from '../../hooks/useAsync'
 import { formatAgentName, formatCount, formatDateTime, formatRelativeTime, truncate } from '../../lib/format'
 
 const capabilityMeta = [
-  { key: 'llm' as const, label: 'Mô hình Ngôn ngữ (LLM)', icon: 'memory' },
+  { key: 'llm' as const, label: 'Language Model (LLM)', icon: 'memory' },
   { key: 'embeddings' as const, label: 'Embeddings', icon: 'schema' },
   { key: 'web_search' as const, label: 'Web Search', icon: 'language', web: true },
 ]
@@ -26,14 +26,14 @@ function auditMessage(row: AuditRecord): string {
   const payload = row.payload ?? {}
   if (row.action === 'chat_start') {
     const preview = payload.message_preview as string | undefined
-    return preview ? `Bắt đầu chat: ${preview}` : 'Bắt đầu phiên chat'
+    return preview ? `Chat started: ${preview}` : 'Chat session started'
   }
   if (row.action === 'chat_complete') {
     const workers = payload.worker_count as number | undefined
-    return `Hoàn tất chat${workers != null ? ` (${workers} worker)` : ''}`
+    return `Chat completed${workers != null ? ` (${workers} worker)` : ''}`
   }
   if (row.action === 'chat_error') {
-    return `Lỗi chat: ${(payload.error as string) ?? 'unknown'}`
+    return `Chat error: ${(payload.error as string) ?? 'unknown'}`
   }
   return row.action
 }
@@ -44,23 +44,23 @@ export function DashboardPage() {
   const kpis = data
     ? [
         {
-          label: 'Tài liệu kiến thức',
+          label: 'Knowledge documents',
           value: formatCount(data.counts.knowledge_documents),
-          trend: `${formatCount(data.counts.knowledge_with_embedding)} có embedding`,
+          trend: `${formatCount(data.counts.knowledge_with_embedding)} with embedding`,
           up: true,
           to: '/admin/knowledge',
         },
         {
-          label: 'Phản hồi người dùng',
+          label: 'User feedback',
           value: formatCount(data.counts.feedback),
-          trend: `${formatCount(data.counts.feedback_rated)} đã đánh giá`,
+          trend: `${formatCount(data.counts.feedback_rated)} rated`,
           up: true,
           to: '/admin/feedback',
         },
         {
-          label: 'Sự kiện kiểm tra (Audit)',
+          label: 'Audit events',
           value: formatCount(data.counts.audit_log),
-          trend: 'Từ database',
+          trend: 'From database',
           up: false,
           to: '/admin/audit',
         },
@@ -71,9 +71,9 @@ export function DashboardPage() {
     <div className="mx-auto max-w-[1200px] space-y-8 p-margin-page">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-display-lg font-display-lg text-primary">Tổng quan hệ thống</h1>
+          <h1 className="text-display-lg font-display-lg text-primary">System Overview</h1>
           <p className="text-body-lg text-on-surface-variant">
-            Giám sát hiệu suất và trạng thái các mô hình Agent AI.
+            Monitor performance and status of AI agent models.
             {data?.version && <span className="ml-2 text-label-sm">v{data.version}</span>}
           </p>
         </div>
@@ -84,7 +84,7 @@ export function DashboardPage() {
           className="flex items-center gap-2 rounded-lg border border-border-subtle px-4 py-2 text-label-md text-primary hover:bg-surface-container-low disabled:opacity-50"
         >
           <MaterialIcon name="refresh" size={18} className={loading ? 'animate-spin' : ''} />
-          Làm mới
+          Refresh
         </button>
       </div>
 
@@ -146,23 +146,23 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 gap-6 pb-12 lg:grid-cols-2">
         <div className="flex h-[400px] flex-col rounded-xl border border-border-subtle bg-surface">
           <div className="flex items-center justify-between rounded-t-xl border-b border-border-subtle bg-surface-container-lowest px-6 py-4">
-            <h3 className="text-headline-sm text-primary">Phản hồi gần đây</h3>
+            <h3 className="text-headline-sm text-primary">Recent feedback</h3>
             <Link to="/admin/feedback" className="text-label-md text-secondary hover:text-secondary-container">
-              Xem tất cả
+              View all
             </Link>
           </div>
           <div className="flex-1 overflow-auto p-4">
             {loading ? (
-              <p className="text-body-md text-on-surface-variant">Đang tải…</p>
+              <p className="text-body-md text-on-surface-variant">Loading…</p>
             ) : !data?.recent_feedback.length ? (
-              <p className="text-body-md text-on-surface-variant">Chưa có phản hồi</p>
+              <p className="text-body-md text-on-surface-variant">No feedback yet</p>
             ) : (
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-border-subtle">
-                    <th className="px-3 py-2 text-label-sm text-on-surface-variant">Câu hỏi</th>
-                    <th className="px-3 py-2 text-label-sm text-on-surface-variant">Đánh giá</th>
-                    <th className="px-3 py-2 text-label-sm text-on-surface-variant">Thời gian</th>
+                    <th className="px-3 py-2 text-label-sm text-on-surface-variant">Question</th>
+                    <th className="px-3 py-2 text-label-sm text-on-surface-variant">Rating</th>
+                    <th className="px-3 py-2 text-label-sm text-on-surface-variant">Time</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -190,16 +190,16 @@ export function DashboardPage() {
 
         <div className="flex h-[400px] flex-col rounded-xl border border-border-subtle bg-surface">
           <div className="flex items-center justify-between rounded-t-xl border-b border-border-subtle bg-surface-container-lowest px-6 py-4">
-            <h3 className="text-headline-sm text-primary">Nhật ký hệ thống</h3>
+            <h3 className="text-headline-sm text-primary">System log</h3>
             <Link to="/admin/audit" className="flex items-center gap-1 text-label-md text-secondary hover:text-secondary-container">
-              Xem audit <MaterialIcon name="filter_list" size={14} />
+              View audit <MaterialIcon name="filter_list" size={14} />
             </Link>
           </div>
           <div className="flex-1 overflow-auto p-4">
             {loading ? (
-              <p className="text-body-md text-on-surface-variant">Đang tải…</p>
+              <p className="text-body-md text-on-surface-variant">Loading…</p>
             ) : !data?.recent_audit.length ? (
-              <p className="text-body-md text-on-surface-variant">Chưa có sự kiện audit</p>
+              <p className="text-body-md text-on-surface-variant">No audit events yet</p>
             ) : (
               <ul className="space-y-3 font-body-code text-body-code">
                 {data.recent_audit.map((log) => {

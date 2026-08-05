@@ -1,9 +1,6 @@
-> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
-> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
-
 # Reference Repositories — Survey Frameworks & Patterns
 
-> Khảo sát các repo và pattern nổi tiếng, áp dụng cho Multi-Agent Platform.
+> Survey of popular repos and patterns applicable to the Multi-Agent Platform.
 
 ---
 
@@ -22,21 +19,21 @@
 
 ---
 
-## 2. Chi tiết từng Repo
+## 2. Repo Details
 
 ### 2.1 LangGraph — Orchestration Engine (RECOMMENDED)
 
 - **Repo:** https://github.com/langchain-ai/langgraph
 - **Docs:** https://docs.langchain.com/oss/python/langgraph/overview
 
-**Điểm mạnh:**
+**Strengths:**
 - Low-level graph runtime — full control over agent flow
 - Durable execution, checkpointing, human-in-the-loop
 - `create_supervisor` for multi-agent with `output_mode`, `pre_model_hook`
 - State schema (TypedDict) — typed shared state
 - Production: Klarna, Uber, J.P. Morgan
 
-**Patterns học được:**
+**Patterns to learn:**
 ```
 Supervisor pattern → output_mode="last_message"
 State schema → worker_results keys, not full messages
@@ -44,7 +41,7 @@ pre_model_hook → summarization middleware
 Parallel tool calls → parallel A2A dispatch
 ```
 
-**Project dùng cho:** Workflow engine, state management, supervisor orchestration.
+**Used in this project for:** Workflow engine, state management, supervisor orchestration.
 
 ---
 
@@ -68,7 +65,7 @@ LeadResearcher → synthesize → CitationAgent → final output
 - Citation agent as separate pass
 - 90.2% improvement over single-agent
 
-**Project áp dụng:** Planner/Worker/Synthesizer/Citation role separation.
+**Applied in this project:** Planner/Worker/Synthesizer/Citation role separation.
 
 ---
 
@@ -90,7 +87,7 @@ Stage 3: Chairman Synthesis — designated model combines best elements
 - Graceful degradation (continue if 1 model fails)
 - 4-layer architecture: Tier Selection → Triage → Orchestration → Gateway
 
-**Project áp dụng:** Mode 4 (Council) for critical SLO tier.
+**Applied in this project:** Mode 4 (Council) for critical SLO tier.
 
 ---
 
@@ -110,7 +107,7 @@ Request → Router (BERT/MF classifier) → strong model OR weak model
 - <10ms routing decision
 - OpenAI-compatible proxy server
 
-**Project áp dụng:** Control Plane model router, T0/T1 dynamic routing.
+**Applied in this project:** Control Plane model router, T0/T1 dynamic routing.
 
 ---
 
@@ -132,7 +129,7 @@ billing = Agent(model="gpt-4o", tools=[...])
 - **Handoffs:** Specialist owns conversation (customer support)
 - **Agents as tools:** Manager stays in control, calls specialists (`agent.as_tool()`)
 
-**Project áp dụng:** Triage agent (T0), handoff vs agents-as-tools decision per use case.
+**Applied in this project:** Triage agent (T0), handoff vs agents-as-tools decision per use case.
 
 ---
 
@@ -151,7 +148,7 @@ Flow = Event-driven workflows with state, branching
 - Task = description + expected_output + agent assignment
 - Process = sequential | hierarchical (manager agent)
 
-**Project áp dụng:** Role definition pattern, hierarchical process for planning.
+**Applied in this project:** Role definition pattern, hierarchical process for planning.
 
 ---
 
@@ -167,7 +164,7 @@ Flow = Event-driven workflows with state, branching
 
 **Native:** MCP + A2A + Azure AI Foundry integration.
 
-**Project áp dụng:** Nếu team .NET/Azure-heavy, consider MAF over raw LangGraph.
+**Applied in this project:** If the team is .NET/Azure-heavy, consider MAF over raw LangGraph.
 
 ---
 
@@ -182,7 +179,7 @@ Flow = Event-driven workflows with state, branching
 
 **Key philosophy:** Explicit graphs, auditable paths. "Point at the graph and tell an auditor exactly how a decision got made."
 
-**Project áp dụng:** Pipeline mode (ETL, reporting), A2A interop.
+**Applied in this project:** Pipeline mode (ETL, reporting), A2A interop.
 
 ---
 
@@ -196,11 +193,11 @@ Before agent node → CASTER analyzes state → selects model tier
 If low-cost model fails → rollback + upgrade tier
 ```
 
-**Project áp dụng:** Advanced routing (Phase 4), per-step tier optimization.
+**Applied in this project:** Advanced routing (Phase 4), per-step tier optimization.
 
 ---
 
-## 3. Pattern Catalog — Khi nào dùng gì
+## 3. Pattern Catalog — When to Use What
 
 | Pattern | Source | Use Case | Execution mode |
 |---------|--------|----------|--------------|
@@ -285,4 +282,4 @@ If low-cost model fails → rollback + upgrade tier
 
 **Decision: LangGraph (orchestration logic) + Azure AI Foundry (hosting/governance) + MCP + A2A**
 
-CrewAI có thể dùng cho rapid prototyping Phase 0, migrate sang LangGraph Phase 1.
+CrewAI can be used for rapid prototyping in Phase 0, then migrate to LangGraph in Phase 1.

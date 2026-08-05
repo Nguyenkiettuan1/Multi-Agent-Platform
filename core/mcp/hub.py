@@ -1,4 +1,4 @@
-"""MCP Tool Hub — gộp internal tools + MCP stdio servers cho app runtime."""
+"""MCP Tool Hub — merges internal tools + MCP stdio servers for app runtime."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class ToolHub:
-    """Catalog + invoke tools từ nhiều MCP server."""
+    """Catalog + invoke tools from multiple MCP servers."""
 
     def list_tools(self, *, server_filter: set[str] | None = None) -> list[ToolDescriptor]:
         catalog = load_mcp_catalog()
@@ -64,7 +64,7 @@ class ToolHub:
                 tool_id=tool_id,
                 success=False,
                 content="",
-                error=f"Server `{server_id}` chưa bật trong config/mcp_servers.yaml",
+                error=f"Server `{server_id}` is not enabled in config/mcp_servers.yaml",
             )
 
         if cfg.kind == "internal" or tool_id in _internal_tool_ids():
@@ -82,7 +82,7 @@ class ToolHub:
                 tool_id=tool_id,
                 success=False,
                 content="",
-                error="Package mcp chưa cài",
+                error="Package mcp is not installed",
             )
 
         env = {**cfg.env}

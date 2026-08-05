@@ -1,4 +1,4 @@
-"""Eval runner — chạy test cases từ eval/cases/*.yaml."""
+"""Eval runner — run test cases from eval/cases/*.yaml."""
 
 from __future__ import annotations
 

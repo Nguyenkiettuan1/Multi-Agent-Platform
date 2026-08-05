@@ -28,7 +28,7 @@ async def run_legal_worker(task: SubTask, *, chat_history: list[dict] | None = N
             skill_name="legal-research",
             extra_context=(
                 f"{CITATION_INSTRUCTION}\n\n"
-                f"Tài liệu pháp lý ({', '.join(result.backends_used)}):\n{context}"
+                f"Legal documents ({', '.join(result.backends_used)}):\n{context}"
             ),
             chat_history=chat_history,
         )
@@ -50,7 +50,7 @@ async def run_legal_worker(task: SubTask, *, chat_history: list[dict] | None = N
         return WorkerResult(
             task_id=task.id,
             agent=AgentId.LEGAL_WORKER,
-            summary=f"Lỗi legal: {exc}",
+            summary=f"Legal error: {exc}",
             success=False,
             tools_called=tools_called,
         )

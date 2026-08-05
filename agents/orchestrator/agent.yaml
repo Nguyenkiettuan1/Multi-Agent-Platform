@@ -1,7 +1,7 @@
-# Orchestrator Pipeline — Lớp 3: control-plane nodes (LangGraph steps)
+# Orchestrator Pipeline — Layer 3: control-plane nodes (LangGraph steps)
 # Ref: Anthropic LeadResearcher/CitationAgent, LangGraph router pattern
 #
-# Các node này KHÔNG phải worker agent — là bước trong graph:
+# These nodes are NOT worker agents — they are steps in the graph:
 #   triage → meta-planner → workers → reviewer → synthesizer
 
 agents:

@@ -1,4 +1,4 @@
-"""Action worker — thực thi tool đã bind tại plan stage hoặc LLM chọn tool."""
+"""Action worker — executes tool bound at plan stage or LLM-selected tool."""
 
 from __future__ import annotations
 
@@ -24,14 +24,14 @@ logger = logging.getLogger(__name__)
 
 _MAX_TOOL_ROUNDS = 4
 
-_TOOL_SELECT_SYSTEM = """Bạn là action agent — chọn đúng MCP tool.
+_TOOL_SELECT_SYSTEM = """You are an action agent — select the correct MCP tool.
 
-Trả JSON:
+Return JSON:
 {{"calls": [{{"tool_id": "server/tool", "arguments": {{}}}}], "done": false, "answer": ""}}
 
-Nếu không cần tool: {{"done": true, "answer": "..."}}
+If no tool is needed: {{"done": true, "answer": "..."}}
 
-Chỉ dùng tool_id trong danh sách. Server đã có file đính kèm — không cần truyền image_base64.
+Only use tool_id values from the list. The server already has the attachment — do not pass image_base64.
 
 {ocr_hint}
 """
@@ -100,7 +100,7 @@ async def run_action_worker(
             if result.success:
                 tool_outputs.append(f"### {executed_id}\n{result.content}")
             else:
-                tool_outputs.append(f"### {executed_id} (lỗi)\n{result.error or result.content}")
+                tool_outputs.append(f"### {executed_id} (error)\n{result.error or result.content}")
 
     if not tool_outputs:
         summary = await complete_worker_task(
@@ -111,9 +111,9 @@ async def run_action_worker(
         )
         if not summary:
             summary = (
-                f"Không thực thi được tool MCP cho: {task.description[:200]}\n\n"
-                "Bật server trong `config/mcp_servers.yaml` (enabled: true) "
-                "hoặc cấu hình LLM để agent chọn tool."
+                f"Could not execute MCP tool for: {task.description[:200]}\n\n"
+                "Enable the server in `config/mcp_servers.yaml` (enabled: true) "
+                "or configure an LLM so the agent can select tools."
             )
         return WorkerResult(
             task_id=task.id,
@@ -128,7 +128,7 @@ async def run_action_worker(
         synthesis = await complete_worker_task(
             AgentId.ACTION_WORKER,
             task.description,
-            extra_context="Kết quả tool:\n" + "\n\n".join(tool_outputs),
+            extra_context="Tool results:\n" + "\n\n".join(tool_outputs),
             chat_history=chat_history,
         )
     summary = synthesis or "\n\n".join(tool_outputs)
@@ -153,7 +153,7 @@ async def _execute_with_escalation(
     task_kind: str = "",
     high_accuracy: bool = False,
 ) -> list[tuple[str, ToolCallResult]]:
-    """OCR: fallback chain từ config; tool khác gọi trực tiếp."""
+    """OCR: fallback chain from config; other tools called directly."""
     if not is_ocr_tool_id(tool_id):
         result = await hub.call_tool(tool_id, arguments)
         return [(tool_id, result)]
@@ -227,8 +227,8 @@ async def _plan_tool_calls(
     attach_note = ""
     if attachments:
         attach_note = (
-            f"\n\nUser đính kèm {len(attachments)} file — server đã lưu file_path, "
-            "không cần image_base64."
+            f"\n\nUser attached {len(attachments)} file(s) — server saved file_path, "
+            "no image_base64 needed."
         )
     messages = [
         {"role": "system", "content": system},
@@ -261,14 +261,14 @@ def _keyword_fallback_calls(
 
 
 def _tools_context(tools) -> str:
-    lines = ["Các MCP tool khả dụng:", ocr_routing_hint_for_llm()]
+    lines = ["Available MCP tools:", ocr_routing_hint_for_llm()]
     for t in tools:
         lines.append(f"- {t.id}: {t.description}")
     return "\n".join(lines)
 
 
 def _summary_from_tool_outputs(tool_outputs: list[str]) -> str | None:
-    """Trả text OCR trực tiếp — tránh LLM bịa hướng dẫn cài Tesseract."""
+    """Return OCR text directly — avoid LLM inventing Tesseract install instructions."""
     import json
 
     for block in tool_outputs:
@@ -279,7 +279,7 @@ def _summary_from_tool_outputs(tool_outputs: list[str]) -> str | None:
             continue
         if isinstance(data, dict) and data.get("text"):
             engine = data.get("engine", "ocr")
-            return f"**Nội dung đọc từ ảnh** (_{engine}_):\n\n{data['text']}"
+            return f"**Text read from image** (_{engine}_):\n\n{data['text']}"
         if isinstance(data, dict) and data.get("error"):
-            return f"**Không đọc được ảnh:** {data['error']}"
+            return f"**Could not read image:** {data['error']}"
     return None

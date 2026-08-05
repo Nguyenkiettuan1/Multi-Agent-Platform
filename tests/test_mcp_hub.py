@@ -34,7 +34,7 @@ async def test_translate_tool_without_llm_returns_hint():
         {"text": "Hello world", "target_lang": "vi"},
     )
     assert result.tool_id == "builtin-translate/translate_text"
-    # Có hoặc không LLM — đều phải trả JSON hợp lệ
+    # With or without LLM — must return valid JSON
     assert result.content or result.error
 
 

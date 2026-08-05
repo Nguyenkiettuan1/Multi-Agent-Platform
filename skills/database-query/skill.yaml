@@ -1,9 +1,9 @@
-# skill.yaml — Config tùy biến (machine-readable)
-# Platform đọc file này: triggers, agents, version, enabled...
-# Nội dung hướng dẫn agent nằm trong SKILL.md (markdown)
+# skill.yaml — Custom config (machine-readable)
+# Platform reads this file: triggers, agents, version, enabled...
+# Agent instruction content lives in SKILL.md (markdown)
 
 name: database-query
-description: Hướng dẫn truy vấn PostgreSQL an toàn (read-only)
+description: Safe PostgreSQL query guidance (read-only)
 version: "1.0"
 enabled: true
 
@@ -15,9 +15,13 @@ triggers:
   - database
   - sql
   - bảng
+  - table
   - dữ liệu
+  - data
   - thống kê
+  - statistics
   - báo cáo
+  - report
 
 model_tier: T1
 max_context_tokens: 2048
@@ -26,7 +30,7 @@ tags:
   - capability
   - database
 
-# Tùy biến thêm (platform-specific)
+# Additional customization (platform-specific)
 settings:
   max_rows: 100
   read_only: true

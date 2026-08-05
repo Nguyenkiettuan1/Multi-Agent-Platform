@@ -1,4 +1,4 @@
-"""Chạy workflow end-to-end."""
+"""Run workflow end-to-end."""
 
 from __future__ import annotations
 
@@ -224,8 +224,8 @@ async def stream_agent_workflow(
     yield _sse("step", running_step(
         phase="triage",
         agent="triage",
-        title="Phân loại intent",
-        detail="Đang phân tích yêu cầu…",
+        title="Classify intent",
+        detail="Analyzing request…",
     ).to_dict())
 
     try:
@@ -241,7 +241,7 @@ async def stream_agent_workflow(
                         yield _sse("step", running_step(
                             phase=phase,
                             title=title,
-                            detail="Đang xử lý…",
+                            detail="Processing…",
                         ).to_dict())
 
             snapshot = await compiled.aget_state(config)

@@ -10,15 +10,15 @@ function feedbackStatus(rating: number | null, evalScore: number | null): {
   statusType: 'success' | 'warning' | 'neutral'
 } {
   if (rating != null && rating >= 4 && evalScore != null && evalScore >= 0.8) {
-    return { status: 'Chất lượng cao', statusType: 'success' }
+    return { status: 'High quality', statusType: 'success' }
   }
   if (rating != null && rating <= 2) {
-    return { status: 'Cần xem xét', statusType: 'warning' }
+    return { status: 'Needs review', statusType: 'warning' }
   }
   if (rating == null) {
-    return { status: 'Chưa đánh giá', statusType: 'neutral' }
+    return { status: 'Not rated', statusType: 'neutral' }
   }
-  return { status: 'Đã ghi nhận', statusType: 'neutral' }
+  return { status: 'Recorded', statusType: 'neutral' }
 }
 
 export function FeedbackPage() {
@@ -44,7 +44,7 @@ export function FeedbackPage() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Xuất dữ liệu thất bại')
+      alert(err instanceof Error ? err.message : 'Export failed')
     } finally {
       setExporting(false)
     }
@@ -54,9 +54,9 @@ export function FeedbackPage() {
     <div className="mx-auto max-w-[1400px] p-margin-page">
       <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-display-lg text-primary">Quản lý phản hồi</h1>
+          <h1 className="text-display-lg text-primary">Feedback Management</h1>
           <p className="mt-1 text-body-lg text-on-surface-variant">
-            Đánh giá và phân tích phản hồi từ người dùng về hiệu suất của Agent.
+            Review and analyze user feedback on agent performance.
           </p>
         </div>
         <button
@@ -66,7 +66,7 @@ export function FeedbackPage() {
           className="flex items-center gap-2 rounded-lg border border-border-subtle px-4 py-2 text-label-md text-primary hover:bg-surface-container-low disabled:opacity-50"
         >
           <MaterialIcon name="refresh" size={18} className={loading ? 'animate-spin' : ''} />
-          Làm mới
+          Refresh
         </button>
       </div>
 
@@ -86,10 +86,10 @@ export function FeedbackPage() {
             }}
             className="w-full appearance-none rounded-lg border border-outline-variant bg-surface-bright px-4 py-2 text-body-md text-on-surface focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none"
           >
-            <option value="all">Đánh giá tối thiểu: Tất cả</option>
-            <option value="3">Đánh giá tối thiểu: 3+</option>
-            <option value="4">Đánh giá tối thiểu: 4+</option>
-            <option value="5">Đánh giá tối thiểu: 5+</option>
+            <option value="all">Minimum rating: All</option>
+            <option value="3">Minimum rating: 3+</option>
+            <option value="4">Minimum rating: 4+</option>
+            <option value="5">Minimum rating: 5+</option>
           </select>
           <MaterialIcon
             name="expand_more"
@@ -103,7 +103,7 @@ export function FeedbackPage() {
           className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-outline-variant bg-surface-bright px-4 py-2 text-label-md text-on-surface hover:bg-surface-container-low disabled:opacity-50 sm:w-auto"
         >
           <MaterialIcon name="download" size={18} />
-          {exporting ? 'Đang xuất…' : 'Xuất dữ liệu'}
+          {exporting ? 'Exporting…' : 'Export data'}
         </button>
       </div>
 
@@ -112,25 +112,25 @@ export function FeedbackPage() {
           <table className="w-full min-w-[800px] border-collapse text-left">
             <thead>
               <tr className="border-b border-border-subtle bg-surface-container-low">
-                <th className="w-1/4 p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Câu hỏi</th>
-                <th className="w-1/4 p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Phản hồi của Agent</th>
-                <th className="w-[120px] p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Đánh giá</th>
-                <th className="w-[100px] p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Điểm AI</th>
-                <th className="w-[150px] p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Trạng thái</th>
-                <th className="w-[150px] p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Thời gian</th>
+                <th className="w-1/4 p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Question</th>
+                <th className="w-1/4 p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Agent Response</th>
+                <th className="w-[120px] p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Rating</th>
+                <th className="w-[100px] p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">AI Score</th>
+                <th className="w-[150px] p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Status</th>
+                <th className="w-[150px] p-4 text-label-sm font-semibold uppercase tracking-wider text-on-surface-variant">Time</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle text-body-md text-on-surface">
               {loading ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-on-surface-variant">
-                    Đang tải…
+                    Loading…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-on-surface-variant">
-                    Chưa có phản hồi
+                    No feedback yet
                   </td>
                 </tr>
               ) : (
@@ -193,7 +193,7 @@ export function FeedbackPage() {
         </div>
         <div className="flex items-center justify-between border-t border-border-subtle bg-surface-container-low px-4 py-3">
           <span className="text-body-md text-on-surface-variant">
-            Hiển thị {rows.length} trên tổng số {total} phản hồi
+            Showing {rows.length} of {total} feedback entries
           </span>
         </div>
       </div>

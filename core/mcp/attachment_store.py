@@ -1,4 +1,4 @@
-"""Backward-compat — dùng core.mcp.attachments."""
+"""Backward-compat — use core.mcp.attachments."""
 
 from core.mcp.attachments import ensure_file_path, materialize_attachments
 

@@ -1,29 +1,26 @@
-> **English guides:** [README](../README.md) · [Local setup](12-LOCAL-SETUP.md) · [Docs index](README.md)  
-> This document may still contain Vietnamese in places; prefer the English guides above for running the project.
+# Multi-Agent Enterprise Architecture v2
 
-# Kiến trúc Multi-Agent Enterprise v2
-
-> **Tài liệu này thay thế thiết kế v1.** Kiến trúc v1 chỉ có Supervisor + Workers — thiếu phân cấp model, context engineering, review/synthesis loop, và control plane. v2 dựa trên các pattern production từ Anthropic Research, LangGraph, RouteLLM, llm-council (Karpathy), Microsoft Agent Framework, Google ADK.
+> **This document supersedes the v1 design.** The v1 architecture had only Supervisor + Workers — it lacked model tiering, context engineering, a review/synthesis loop, and a control plane. v2 is based on production patterns from Anthropic Research, LangGraph, RouteLLM, llm-council (Karpathy), Microsoft Agent Framework, and Google ADK.
 
 ---
 
-## 1. Vấn đề của thiết kế v1
+## 1. Problems with the v1 Design
 
-| Thiếu sót | Hậu quả |
-|-----------|----------|
-| Mọi agent dùng chung 1 model | Chi phí cao, latency cao, hoặc chất lượng thấp |
-| Không phân vai Planner / Worker / Reviewer / Synthesizer | Agent "ôm" quá nhiều việc, hallucination tăng |
-| Không có Model Router | Không tối ưu cost/quality tradeoff |
-| Không có Context Engineering | Context window blowup sau 10–20 bước |
-| Không có Control Plane | Không audit, không policy, không quota |
-| Workers = Agents đơn giản | Thiếu adversarial review cho task quan trọng |
-| Không có Intelligence Plane | Không có feedback loop → fine-tune |
+| Gap | Consequence |
+|-----|-------------|
+| Every agent shared one model | High cost, high latency, or low quality |
+| No separation of Planner / Worker / Reviewer / Synthesizer roles | Agents took on too much work; hallucinations increased |
+| No Model Router | No cost/quality tradeoff optimization |
+| No Context Engineering | Context window blowup after 10–20 steps |
+| No Control Plane | No audit, policy, or quota enforcement |
+| Workers = simple agents | No adversarial review for important tasks |
+| No Intelligence Plane | No feedback loop → no fine-tuning |
 
 ---
 
-## 2. Ba Plane — Nền tảng Enterprise
+## 2. Three Planes — Enterprise Foundation
 
-Tham chiếu: [Mercor Three Planes](https://www.mercor.com/blog/the-three-planes-of-enterprise-agent-systems/), [System of Intelligence Pattern](https://theagentichive.com/the-system-of-intelligence-pattern-architecting-enterprise-ai-that-respects-systems-of-record-037430da3b34)
+References: [Mercor Three Planes](https://www.mercor.com/blog/the-three-planes-of-enterprise-agent-systems/), [System of Intelligence Pattern](https://theagentichive.com/the-system-of-intelligence-pattern-architecting-enterprise-ai-that-respects-systems-of-record-037430da3b34)
 
 ```mermaid
 flowchart TB
@@ -57,20 +54,20 @@ flowchart TB
     IP -.->|feedback| CP
 ```
 
-### Control Plane — "Được phép làm gì?"
+### Control Plane — "What is allowed?"
 - **Identity**: Entra ID, user context delegation
-- **Model Router**: Chọn model tier theo task complexity, SLO, cost budget
+- **Model Router**: Select model tier by task complexity, SLO, and cost budget
 - **Policy Engine**: RBAC, data sensitivity, egress rules
 - **HITL Gates**: Write DB, send email, financial actions
 - **Quota**: Token budget per user/team/request
 
-### Data/Execution Plane — "Thực thi công việc"
+### Data/Execution Plane — "Execute the work"
 - Workflow engine (stateful, durable, checkpointing)
-- Agent fleet với A2A
+- Agent fleet with A2A
 - MCP tool servers
-- Shared state (không dump full history vào mọi agent)
+- Shared state (do not dump full history into every agent)
 
-### Intelligence Plane — "Học và cải thiện"
+### Intelligence Plane — "Learn and improve"
 - Knowledge base (RAG)
 - Trace → eval dataset → fine-tune
 - Skills registry (domain knowledge)
@@ -78,9 +75,9 @@ flowchart TB
 
 ---
 
-## 3. Agent Role Taxonomy — KHÔNG phải "nhiều agent = nhiều copy cùng model"
+## 3. Agent Role Taxonomy — NOT "more agents = more copies of the same model"
 
-**Nguyên tắc:** Mỗi **vai trò** (role) có **model tier riêng**, **context budget riêng**, **tools riêng**.
+**Principle:** Each **role** has its own **model tier**, **context budget**, and **tools**.
 
 ```mermaid
 flowchart TB
@@ -90,7 +87,7 @@ flowchart TB
         TRIAGE[Triage Agent<br/>Tier: FAST<br/>gpt-4o-mini / haiku]
     end
 
-    TRIAGE -->|simple| WORKER_DIRECT[Worker trực tiếp]
+    TRIAGE -->|simple| WORKER_DIRECT[Direct Worker]
     TRIAGE -->|complex| PLANNER
 
     subgraph L1["L1 — Planning"]
@@ -124,35 +121,35 @@ flowchart TB
     SYNTH --> CITE --> OUTPUT[Final Response]
 ```
 
-### Bảng vai trò × model tier
+### Role × model tier table
 
-| Role | Vai trò | Model Tier | Ví dụ Model | Context Budget | Khi nào dùng |
-|------|---------|------------|-------------|----------------|--------------|
-| **Triage** | Phân loại intent, route | **FAST** (L0) | gpt-4o-mini, haiku | 8K | Mọi request |
-| **Meta-Planner** | Phân rã task → DAG | **REASONING** (L1) | o3, claude-opus, gpt-4.1 | 32K + external memory | Task phức tạp, multi-step |
-| **Domain Worker** | Thực thi 1 sub-task | **BALANCED** (L2) | gpt-4.1, sonnet | 16K isolated | Query DB, search, API call |
-| **Micro-Worker** | Format, classify, extract | **FAST** (L0) | mini, haiku | 4K | Sub-task đơn giản |
-| **Critic/Reviewer** | Review output, catch errors | **STRONG** (L3) | sonnet, gpt-4.1 | 16K | Trước khi trả user, task nhạy cảm |
-| **Synthesizer** | Tổng hợp multi-agent results | **REASONING** (L1) | opus, gpt-4.1 | 32K | Sau parallel workers |
+| Role | Purpose | Model Tier | Example Models | Context Budget | When to use |
+|------|---------|------------|----------------|----------------|-------------|
+| **Triage** | Classify intent, route | **FAST** (L0) | gpt-4o-mini, haiku | 8K | Every request |
+| **Meta-Planner** | Decompose task → DAG | **REASONING** (L1) | o3, claude-opus, gpt-4.1 | 32K + external memory | Complex, multi-step tasks |
+| **Domain Worker** | Execute one sub-task | **BALANCED** (L2) | gpt-4.1, sonnet | 16K isolated | Query DB, search, API call |
+| **Micro-Worker** | Format, classify, extract | **FAST** (L0) | mini, haiku | 4K | Simple sub-tasks |
+| **Critic/Reviewer** | Review output, catch errors | **STRONG** (L3) | sonnet, gpt-4.1 | 16K | Before returning to user; sensitive tasks |
+| **Synthesizer** | Combine multi-agent results | **REASONING** (L1) | opus, gpt-4.1 | 32K | After parallel workers |
 | **Citation Agent** | Verify sources, add citations | **BALANCED** (L2) | sonnet | 64K (docs) | Research, legal |
 | **Chairman** | Council synthesis | **REASONING** (L1) | opus, gemini-pro | 64K | High-stakes decisions |
 
-### Quy tắc gán model
+### Model assignment rules
 
 ```
-1. Triage LUÔN dùng model rẻ nhất — chỉ classify + route
-2. Planner dùng model mạnh nhất — quyết định DAG ảnh hưởng toàn flow
-3. Workers dùng model cân bằng — 80% workload, cost-sensitive
-4. Reviewer KHÔNG dùng model yếu — đây là safety net
-5. Synthesizer dùng model mạnh — output cuối cùng user thấy
-6. Per-step routing (CASTER pattern): trước MỖI agent node, router quyết định tier
+1. Triage ALWAYS uses the cheapest model — classify + route only
+2. Planner uses the strongest model — DAG decisions affect the entire flow
+3. Workers use balanced models — 80% of workload, cost-sensitive
+4. Reviewer MUST NOT use a weak model — this is the safety net
+5. Synthesizer uses a strong model — this is the final output the user sees
+6. Per-step routing (CASTER pattern): before EACH agent node, the router decides the tier
 ```
 
 ---
 
-## 4. Model Router — Phân cấp động
+## 4. Model Router — Dynamic Tiering
 
-Tham chiếu: [RouteLLM](https://github.com/lm-sys/RouteLLM), [CASTER paper](https://arxiv.org/pdf/2601.19793v1), [Zylos Model Routing](https://zylos.ai/research/2026-03-02-ai-agent-model-routing/)
+References: [RouteLLM](https://github.com/lm-sys/RouteLLM), [CASTER paper](https://arxiv.org/pdf/2601.19793v1), [Zylos Model Routing](https://zylos.ai/research/2026-03-02-ai-agent-model-routing/)
 
 ```mermaid
 flowchart LR
@@ -164,15 +161,15 @@ flowchart LR
     TIER -->|critical| COUNCIL[Council Mode<br/>multi-model]
 ```
 
-### 3 cơ chế routing (kết hợp)
+### Three routing mechanisms (combined)
 
-| Cơ chế | Mô tả | Khi nào |
-|--------|--------|---------|
-| **Role-based** | Model cố định theo agent role | Default, predictable |
+| Mechanism | Description | When to use |
+|-----------|-------------|-------------|
+| **Role-based** | Fixed model per agent role | Default, predictable |
 | **Query-based** | RouteLLM classifier per request | Cost optimization |
-| **Step-based** | Router trước mỗi graph node (CASTER) | LangGraph workflows |
+| **Step-based** | Router before each graph node (CASTER) | LangGraph workflows |
 
-### Cost tiers (ví dụ Azure OpenAI)
+### Cost tiers (Azure OpenAI example)
 
 | Tier | Model | Cost relative | Latency | Use |
 |------|-------|---------------|---------|-----|
@@ -184,7 +181,7 @@ flowchart LR
 ### SLO-based routing
 
 ```yaml
-# Mỗi request có SLO tier từ API edge
+# Each request has an SLO tier from the API edge
 slo_tiers:
   standard:    # 95% requests
     max_model: T1
@@ -202,22 +199,22 @@ slo_tiers:
 
 ---
 
-## 5. Context Engineering — Quản lý Context Window
+## 5. Context Engineering — Managing the Context Window
 
-Tham chiếu: [LangChain Context Engineering](https://www.langchain.com/blog/context-engineering-for-agents), [Anthropic Multi-Agent Research](https://www.anthropic.com/engineering/multi-agent-research-system), [LangGraph Supervisor](https://callsphere.ai/blog/langgraph-supervisor-multi-agent-orchestration-2026.md)
+References: [LangChain Context Engineering](https://www.langchain.com/blog/context-engineering-for-agents), [Anthropic Multi-Agent Research](https://www.anthropic.com/engineering/multi-agent-research-system), [LangGraph Supervisor](https://callsphere.ai/blog/langgraph-supervisor-multi-agent-orchestration-2026.md)
 
-### 5.1 Nguyên tắc cốt lõi
+### 5.1 Core principles
 
-> **"Nhiều agent = nhiều context window riêng biệt"** — Anthropic
+> **"More agents = more separate context windows"** — Anthropic
 
-| Pattern | Mô tả | Ref |
-|---------|--------|-----|
-| **Context Isolation** | Mỗi subagent có context window riêng, không thấy cross-talk | Anthropic Research |
-| **Shared State Schema** | Agents ghi kết quả vào state keys, không dump full conversation | LangGraph |
-| **last_message mode** | Supervisor chỉ nhận message cuối từ worker | LangGraph Supervisor |
-| **Summarization Middleware** | Tóm tắt history cũ trước khi gọi model | LangGraph pre_model_hook |
-| **External Memory** | Plan + findings persist khi > 200K tokens | Anthropic Research |
-| **Scratchpad** | Thread-scoped state cho intermediate results | LangGraph checkpointing |
+| Pattern | Description | Ref |
+|---------|-------------|-----|
+| **Context Isolation** | Each subagent has its own context window; no cross-talk | Anthropic Research |
+| **Shared State Schema** | Agents write results to state keys; do not dump full conversation | LangGraph |
+| **last_message mode** | Supervisor receives only the last message from the worker | LangGraph Supervisor |
+| **Summarization Middleware** | Summarize old history before calling the model | LangGraph pre_model_hook |
+| **External Memory** | Plan + findings persist when > 200K tokens | Anthropic Research |
+| **Scratchpad** | Thread-scoped state for intermediate results | LangGraph checkpointing |
 
 ### 5.2 State Schema (shared, typed)
 
@@ -248,7 +245,7 @@ class AgentState(TypedDict):
   token_budget_remaining: int
 ```
 
-**Quan trọng:** Workers ghi `db_results` (condensed), KHÔNG dump toàn bộ SQL conversation vào `messages`.
+**Important:** Workers write `db_results` (condensed); they do NOT dump the entire SQL conversation into `messages`.
 
 ### 5.3 Token Budget per Role
 
@@ -261,10 +258,10 @@ class AgentState(TypedDict):
 | Synthesizer | 32K | 8K | Summarize worker outputs first |
 | Citation | 64K | 4K | Chunk documents |
 
-### 5.4 Context flow trong multi-agent
+### 5.4 Context flow in multi-agent
 
 ```
-User: "Tìm hợp đồng ABC, phân tích điều khoản thanh toán, gửi báo cáo"
+User: "Find contract ABC, analyze payment terms, send report"
 
 [Planner — 32K context]
   Input: user message + skills metadata
@@ -272,10 +269,10 @@ User: "Tìm hợp đồng ABC, phân tích điều khoản thanh toán, gửi b�
   Writes: state.plan, state.task_dag
 
 [DB Worker — 16K ISOLATED context]
-  Input: "Query contracts WHERE client LIKE '%ABC%'"  (chỉ sub-task)
+  Input: "Query contracts WHERE client LIKE '%ABC%'"  (sub-task only)
   Tools: sql-mcp
   Output: state.db_results = {contracts: [...], sql: "..."}
-  KHÔNG thấy: research task, user full history
+  Does NOT see: research task, user full history
 
 [Research Worker — 16K ISOLATED context]
   Input: "Analyze payment terms for contract ABC Corp"
@@ -295,10 +292,10 @@ User: "Tìm hợp đồng ABC, phân tích điều khoản thanh toán, gửi b�
   Output: final response with citations
 ```
 
-### 5.5 Anti-patterns (tránh)
+### 5.5 Anti-patterns (avoid)
 
-| ❌ Tránh | ✅ Thay bằng |
-|----------|-------------|
+| ❌ Avoid | ✅ Use instead |
+|----------|----------------|
 | `output_mode="full_history"` in prod | `last_message` + log full to LangSmith |
 | Pass full conversation to every worker | Pass only sub-task description |
 | No token budget | Per-role budget + summarization |
@@ -309,43 +306,43 @@ User: "Tìm hợp đồng ABC, phân tích điều khoản thanh toán, gửi b�
 
 ## 6. Execution Topologies — 4 modes
 
-Không phải mọi request đều chạy full pipeline. **Triage quyết định topology.**
+Not every request runs the full pipeline. **Triage decides the topology.**
 
 ### Mode 1: Direct (60% requests)
 ```
 Triage → Worker → Response
 ```
-- Simple query: "Có bao nhiêu hợp đồng active?"
+- Simple query: "How many active contracts are there?"
 - 1 agent, 1 tool call, FAST model
 
 ### Mode 2: Planned (30% requests)
 ```
 Triage → Planner → Worker(s) → Synthesizer → Response
 ```
-- Multi-step: "Tìm hợp đồng ABC và tóm tắt"
-- Planner tạo DAG, workers parallel, synthesizer combine
+- Multi-step: "Find contract ABC and summarize it"
+- Planner creates DAG, workers run in parallel, synthesizer combines results
 
 ### Mode 3: Reviewed (8% requests)
 ```
 Triage → Planner → Workers → Reviewer → [retry?] → Synthesizer → Response
 ```
 - Sensitive: financial data, legal analysis
-- Reviewer catch errors trước khi trả user
+- Reviewer catches errors before returning to the user
 
 ### Mode 4: Council (2% requests — high-stakes)
 ```
 Triage → Planner → Workers → Council(Propose → Peer Review → Chairman) → Response
 ```
-Tham chiếu: [llm-council (Karpathy)](https://github.com/karpathy/llm-council)
+Reference: [llm-council (Karpathy)](https://github.com/karpathy/llm-council)
 - Legal decisions, contract review, compliance
 - 3 stages: independent responses → anonymous peer review → chairman synthesis
 
 ---
 
-## 7. Topology Patterns — Chọn đúng pattern
+## 7. Topology Patterns — Choose the right pattern
 
-| Pattern | Agents | Khi nào | Cost | Ref |
-|---------|--------|---------|------|-----|
+| Pattern | Agents | When to use | Cost | Ref |
+|---------|--------|-------------|------|-----|
 | **Supervisor** | 1 + N workers | 90% use cases | Medium | LangGraph |
 | **Hierarchical** | Supervisor of supervisors | >8 specialists | High | LangGraph |
 | **Council** | N + chairman | High-stakes decisions | Very High | llm-council |
@@ -449,7 +446,7 @@ flowchart TB
 
 ## 9. Agent Fleet Definition
 
-### 9.1 Control Agents (không có tools, chỉ reasoning)
+### 9.1 Control Agents (no tools, reasoning only)
 
 | Agent | Model | Tools | A2A |
 |-------|-------|-------|-----|
@@ -459,7 +456,7 @@ flowchart TB
 | Synthesizer | T2 (reasoning) | None | Reads state |
 | Chairman | T2 (reasoning) | None | Council mode only |
 
-### 9.2 Domain Workers (có MCP tools)
+### 9.2 Domain Workers (with MCP tools)
 
 | Agent | Model | MCP Tools | A2A Endpoint |
 |-------|-------|-----------|--------------|
@@ -469,7 +466,7 @@ flowchart TB
 | Citation Agent | T1 | file-mcp, search-mcp | `/agents/citation-agent/a2a` |
 | Code Worker | T1 | code-interpreter, file-mcp | `/agents/code-worker/a2a` |
 
-### 9.3 Mỗi agent = 1 model + 1 context budget + 1 toolset + 1 A2A endpoint
+### 9.3 Each agent = 1 model + 1 context budget + 1 toolset + 1 A2A endpoint
 
 ```yaml
 # agents/db-worker/agent.yaml
@@ -503,7 +500,7 @@ security:
 
 ---
 
-## 10. Security (bổ sung)
+## 10. Security (supplement)
 
 | Layer | Control |
 |-------|---------|
@@ -516,9 +513,9 @@ security:
 
 ---
 
-## 11. Observability (bổ sung)
+## 11. Observability (supplement)
 
-Mỗi trace phải capture:
+Each trace must capture:
 
 ```json
 {
@@ -545,39 +542,39 @@ Mỗi trace phải capture:
 
 ---
 
-## 12. ADRs (cập nhật)
+## 12. ADRs (updated)
 
 ### ADR-005: Model Tiering per Role
-**Quyết định:** Mỗi agent role có model tier cố định + dynamic routing per step.
-**Lý do:** 80% cost savings on triage/routing; quality where it matters.
+**Decision:** Each agent role has a fixed model tier + dynamic routing per step.
+**Rationale:** 80% cost savings on triage/routing; quality where it matters.
 
 ### ADR-006: Context Isolation
-**Quyết định:** Subagents nhận isolated context, ghi kết quả vào shared state schema.
-**Lý do:** Anthropic Research proved 90% improvement; prevents context blowup.
+**Decision:** Subagents receive isolated context and write results to a shared state schema.
+**Rationale:** Anthropic Research proved 90% improvement; prevents context blowup.
 
 ### ADR-007: Reviewer Gate
-**Quyết định:** Task nhạy cảm (legal, financial) bắt buộc qua Reviewer trước output.
-**Lý do:** LLM Council pattern — adversarial review catches hallucinations.
+**Decision:** Sensitive tasks (legal, financial) must pass through Reviewer before output.
+**Rationale:** LLM Council pattern — adversarial review catches hallucinations.
 
 ### ADR-008: Council Mode for Critical
-**Quyết định:** SLO tier "critical" kích hoạt Council mode (3-stage deliberation).
-**Lý do:** Karpathy llm-council — multi-model consensus for high-stakes.
+**Decision:** SLO tier "critical" activates Council mode (3-stage deliberation).
+**Rationale:** Karpathy llm-council — multi-model consensus for high-stakes.
 
 ### ADR-009: Framework Selection
-**Quyết định:** LangGraph (orchestration) + Foundry (hosting) + MCP (tools) + A2A (inter-agent).
-**Lý do:** LangGraph = best state management; Foundry = enterprise deploy; MCP/A2A = open standards.
+**Decision:** LangGraph (orchestration) + Foundry (hosting) + MCP (tools) + A2A (inter-agent).
+**Rationale:** LangGraph = best state management; Foundry = enterprise deploy; MCP/A2A = open standards.
 
 ---
 
 ## 13. Data Layer — PostgreSQL (local-first)
 
-> Chi tiết: [09-INFRASTRUCTURE.md](09-INFRASTRUCTURE.md) | Nguồn: [langgraph-checkpoint-postgres](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-postgres)
+> Details: [09-INFRASTRUCTURE.md](09-INFRASTRUCTURE.md) | Source: [langgraph-checkpoint-postgres](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-postgres)
 
-### Nguyên tắc
+### Principles
 
-- **PostgreSQL từ ngày đầu** — local qua Docker, cloud sau (Azure PostgreSQL Flexible)
-- **Không SQLite** — local dev dùng PostgresSaver giống production
-- **2 schemas** trong 1 instance local, có thể tách server trên cloud
+- **PostgreSQL from day one** — local via Docker, cloud later (Azure PostgreSQL Flexible)
+- **No SQLite** — local dev uses PostgresSaver like production
+- **2 schemas** in one local instance; can split servers in the cloud
 
 | Schema | Tables | Access |
 |--------|--------|--------|
@@ -591,14 +588,14 @@ Local:  DATABASE_URL=postgresql://...@localhost:5432/multiagent
 Cloud:  DATABASE_URL=postgresql://...@server.postgres.database.azure.com/multiagent?sslmode=require
 ```
 
-Chỉ đổi connection string trong `.env` / Key Vault.
+Change only the connection string in `.env` / Key Vault.
 
 ---
 
-## 14. Tài liệu liên quan
+## 14. Related Documentation
 
-| Doc | Nội dung |
-|-----|----------|
+| Doc | Content |
+|-----|---------|
 | [Infrastructure](09-INFRASTRUCTURE.md) | PostgreSQL local, Docker, cloud migration |
 | [GitHub Reference Map](10-GITHUB-ARCHITECTURE-MAP.md) | 25+ repos mapped to architecture decisions |
 | [Model Tiering](06-MODEL-TIERING.md) | Router, cost, SLO |

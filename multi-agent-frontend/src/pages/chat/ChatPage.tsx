@@ -36,15 +36,15 @@ const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 
 async function fileToAttachment(file: File) {
   if (!IMAGE_TYPES.includes(file.type)) {
-    throw new Error('Chỉ hỗ trợ ảnh PNG, JPEG, WebP hoặc GIF')
+    throw new Error('Only PNG, JPEG, WebP, or GIF images are supported')
   }
   if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error('Ảnh tối đa 4MB')
+    throw new Error('Image must be 4MB or smaller')
   }
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('Không đọc được file'))
+    reader.onerror = () => reject(new Error('Could not read file'))
     reader.readAsDataURL(file)
   })
   const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl
@@ -132,7 +132,7 @@ export function ChatPage() {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Không tải được lịch sử chat')
+          setError(err instanceof Error ? err.message : 'Could not load chat history')
         }
       })
       .finally(() => {
@@ -164,7 +164,7 @@ export function ChatPage() {
     if ((!text && !pendingImage) || loading) return
 
     const attachment = pendingImage?.attachment
-    const displayText = text || (attachment ? 'Đọc thông tin trong ảnh đính kèm' : '')
+    const displayText = text || (attachment ? 'Read information from the attached image' : '')
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -203,7 +203,7 @@ export function ChatPage() {
       }
 
       if (!res) {
-        throw new Error('Không nhận được phản hồi từ server')
+        throw new Error('No response received from server')
       }
 
       if (!routeSessionId) {
@@ -233,7 +233,7 @@ export function ChatPage() {
       ])
       setLivePipeline([])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không gửi được tin nhắn')
+      setError(err instanceof Error ? err.message : 'Could not send message')
       setLivePipeline([])
     } finally {
       setLoading(false)
@@ -253,7 +253,7 @@ export function ChatPage() {
         setError(null)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Không đọc được ảnh')
+        setError(err instanceof Error ? err.message : 'Could not read image')
         e.target.value = ''
       })
   }
@@ -267,7 +267,7 @@ export function ChatPage() {
         prev.map((m) => (m.role === 'assistant' && m.traceId === traceId ? { ...m, rating } : m)),
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không gửi được đánh giá')
+      setError(err instanceof Error ? err.message : 'Could not submit rating')
     }
   }
 
@@ -287,7 +287,7 @@ export function ChatPage() {
           {loadingHistory && (
             <div className="flex flex-col items-center justify-center py-24 text-body-md text-on-surface-variant">
               <MaterialIcon name="progress_activity" size={24} className="mb-3 animate-spin" />
-              Đang tải lịch sử hội thoại…
+              Loading conversation history…
             </div>
           )}
 
@@ -298,14 +298,14 @@ export function ChatPage() {
               </div>
               <h2 className="mb-2 text-headline-sm text-primary">Agent Workspace</h2>
               <p className="max-w-md text-body-md text-on-surface-variant">
-                Hỏi bất cứ điều gì — câu hỏi chung, tra cứu dữ liệu, tài liệu nội bộ, nghiên cứu…
+                Ask anything — general questions, data lookup, internal documents, research…
               </p>
             </div>
           )}
 
           {!loadingHistory && !hasMessages && routeSessionId && !error && (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-              <p className="text-body-md text-on-surface-variant">Chưa có tin nhắn trong cuộc hội thoại này.</p>
+              <p className="text-body-md text-on-surface-variant">No messages in this conversation yet.</p>
             </div>
           )}
 
@@ -316,7 +316,7 @@ export function ChatPage() {
                   <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-surface-container-high px-5 py-3.5 text-body-lg text-on-surface">
                     {msg.imagePreview ? (
                       <div className="mb-2 overflow-hidden rounded-lg border border-border-subtle">
-                        <img src={msg.imagePreview} alt={msg.imageName ?? 'Đính kèm'} className="max-h-48 w-auto object-contain" />
+                        <img src={msg.imagePreview} alt={msg.imageName ?? 'Attachment'} className="max-h-48 w-auto object-contain" />
                       </div>
                     ) : null}
                     {msg.content}
@@ -360,7 +360,7 @@ export function ChatPage() {
                         className="flex items-center gap-1.5 rounded border border-border-subtle px-2 py-1 text-label-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
                       >
                         <MaterialIcon name="menu_book" size={16} />
-                        {msg.citations.length} Nguồn dẫn
+                        {msg.citations.length} Citations
                         <MaterialIcon name={expandedCitations === msg.id ? 'expand_less' : 'expand_more'} size={16} />
                       </button>
                     ) : (
@@ -420,7 +420,7 @@ export function ChatPage() {
             <div className="flex w-full flex-col gap-3 pl-10">
               <div className="flex items-center gap-2 text-body-md text-on-surface-variant">
                 <MaterialIcon name="progress_activity" size={20} className="animate-spin text-primary" />
-                Agent Workspace đang xử lý…
+                Agent Workspace is processing…
               </div>
               {livePipeline.length > 0 ? (
                 <AgentPipelinePanel steps={livePipeline} live defaultExpanded />
@@ -452,7 +452,7 @@ export function ChatPage() {
               <img src={pendingImage.preview} alt="" className="h-14 w-14 rounded-md object-cover" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-label-sm text-on-surface">{pendingImage.name}</p>
-                <p className="text-label-sm text-on-surface-variant">Ảnh sẽ gửi kèm để OCR/đọc thông tin</p>
+                <p className="text-label-sm text-on-surface-variant">Image will be sent for OCR/text extraction</p>
               </div>
               <button
                 type="button"
@@ -461,7 +461,7 @@ export function ChatPage() {
                   if (fileRef.current) fileRef.current.value = ''
                 }}
                 className="rounded-md p-1 text-on-surface-variant hover:bg-surface-container-low"
-                title="Xóa ảnh"
+                title="Remove image"
               >
                 <MaterialIcon name="close" size={18} />
               </button>
@@ -472,7 +472,7 @@ export function ChatPage() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Nhập tin nhắn để thảo luận..."
+            placeholder="Type a message to discuss..."
             disabled={loading || loadingHistory}
             className="min-h-[60px] max-h-[200px] w-full resize-none border-none bg-transparent px-4 py-4 text-body-md text-on-surface focus:ring-0 focus:outline-none disabled:opacity-60"
           />
@@ -482,7 +482,7 @@ export function ChatPage() {
               onClick={handlePickImage}
               disabled={loading || loadingHistory}
               className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50"
-              title="Đính kèm ảnh (OCR)"
+              title="Attach image (OCR)"
             >
               <MaterialIcon name="attach_file" size={20} />
             </button>
@@ -495,7 +495,7 @@ export function ChatPage() {
                 className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-1.5 text-label-md text-on-primary transition-colors hover:bg-inverse-surface disabled:opacity-50"
               >
                 <MaterialIcon name="send" filled size={18} />
-                Gửi
+                Send
               </button>
             </div>
           </div>

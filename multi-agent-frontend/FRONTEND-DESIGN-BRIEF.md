@@ -1,5 +1,3 @@
-> **English guides:** [docs/FRONTEND-DESIGN-BRIEF.md](../docs/FRONTEND-DESIGN-BRIEF.md) · [Frontend README](./README.md)
-
 # Enterprise Multi-Agent AI Platform — Frontend Design Brief
 
 > **Document version:** 2.0  
@@ -675,10 +673,10 @@ Citations appear for **research** and **legal** answers — not every message.
 
 | Doc | Topic |
 |-----|-------|
-| [12-LOCAL-SETUP.md](./12-LOCAL-SETUP.md) | Run API locally |
-| [13-RAG-OBSERVABILITY-GUIDE.md](./13-RAG-OBSERVABILITY-GUIDE.md) | RAG & citations |
-| [15-FEEDBACK-LOOP.md](./15-FEEDBACK-LOOP.md) | Feedback & export |
-| [16-REMAINING-ISSUES.md](./16-REMAINING-ISSUES.md) | Technical backlog |
+| [12-LOCAL-SETUP.md](../docs/12-LOCAL-SETUP.md) | Run API locally |
+| [13-RAG-OBSERVABILITY-GUIDE.md](../docs/13-RAG-OBSERVABILITY-GUIDE.md) | RAG & citations |
+| [15-FEEDBACK-LOOP.md](../docs/15-FEEDBACK-LOOP.md) | Feedback & export |
+| [16-REMAINING-ISSUES.md](../docs/16-REMAINING-ISSUES.md) | Technical backlog |
 
 ---
 

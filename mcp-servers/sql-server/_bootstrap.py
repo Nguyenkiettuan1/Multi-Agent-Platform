@@ -1,4 +1,4 @@
-"""Bootstrap: đảm bảo import config từ thư mục gốc project."""
+"""Bootstrap: ensure config can be imported from the project root."""
 
 import sys
 from pathlib import Path
