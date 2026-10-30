@@ -8,16 +8,41 @@ import uuid
 from core.llm.client import get_llm_client
 from core.llm.context import get_usage_tracker
 from core.registry.agents import format_registry_for_planner, load_registry
-from workflows.prompts import PLANNER_SYSTEM
+from workflows.prompts import render_planner_system
 from workflows.state import AgentId, SubTask, TaskPlan, TopologyMode
 
 logger = logging.getLogger(__name__)
 
-_VALID_AGENTS = {a.value for a in AgentId if a != AgentId.DEFAULT}
 _VALID_TOPOLOGY = {m.value for m in TopologyMode}
 
 
-async def plan_with_llm(user_message: str) -> TaskPlan | None:
+def _enabled_agent_ids() -> list[str]:
+    # load_registry() already drops agents marked `enabled: false`.
+    return [a.value for a in load_registry() if a != AgentId.DEFAULT]
+
+
+def _valid_agent_ids() -> set[str]:
+    return set(_enabled_agent_ids())
+
+
+def _format_history(chat_history: list[dict] | None) -> str:
+    if not chat_history:
+        return ""
+    lines: list[str] = ["## Recent conversation"]
+    for msg in chat_history[-8:]:
+        role = msg.get("role", "user")
+        content = str(msg.get("content", ""))[:1500]
+        if content:
+            lines.append(f"- {role}: {content}")
+    if len(lines) == 1:
+        return ""
+    return "\n".join(lines) + "\n\n"
+
+
+async def plan_with_llm(
+    user_message: str,
+    chat_history: list[dict] | None = None,
+) -> TaskPlan | None:
     client = get_llm_client()
     if not client.enabled:
         return None
@@ -26,11 +51,12 @@ async def plan_with_llm(user_message: str) -> TaskPlan | None:
     registry_text = format_registry_for_planner(registry)
 
     messages = [
-        {"role": "system", "content": PLANNER_SYSTEM},
+        {"role": "system", "content": render_planner_system(_enabled_agent_ids())},
         {
             "role": "user",
             "content": (
                 f"## Agent fleet\n{registry_text}\n\n"
+                f"{_format_history(chat_history)}"
                 f"## User request\n{user_message}\n\n"
                 "Produce TaskPlan JSON."
             ),
@@ -53,9 +79,10 @@ async def plan_with_llm(user_message: str) -> TaskPlan | None:
 
 def _parse_plan(data: dict, fallback_task: str) -> TaskPlan:
     subtasks: list[SubTask] = []
+    valid_agents = _valid_agent_ids()
     for i, st in enumerate(data.get("subtasks", [])):
         agent_raw = st.get("assigned_agent", "general-agent")
-        if agent_raw not in _VALID_AGENTS:
+        if agent_raw not in valid_agents:
             agent_raw = "general-agent"
         subtasks.append(
             SubTask(
