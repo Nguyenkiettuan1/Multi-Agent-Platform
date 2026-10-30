@@ -258,7 +258,7 @@ async def plan_tasks_async(
 
     from workflows.llm_planner import plan_with_llm
 
-    llm_plan = await plan_with_llm(user_message)
+    llm_plan = await plan_with_llm(user_message, chat_history=chat_history)
     if llm_plan is not None:
         return llm_plan
     return await plan_from_triage(
