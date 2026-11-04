@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import type { ChatResponse, Citation, PipelineStep } from '../../api/types'
@@ -7,6 +7,7 @@ import { ChatMessageBody } from '../../components/chat/ChatMessageBody'
 import { MaterialIcon } from '../../components/ui/MaterialIcon'
 import { formatAgentName, truncate } from '../../lib/format'
 import { parseCitationsFromResponse } from '../../lib/citations'
+import { canMoveFocus, createGeneration, dropKnownTurns, scrollTopAfterPrepend } from '../../lib/chatHistory'
 import { dedupeSteps } from '../../lib/pipeline'
 import { upsertChatSession } from '../../lib/storage'
 
@@ -100,10 +101,30 @@ export function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollToBottomOnUpdate = useRef(false)
   const historyLoadedForSession = useRef<string | null>(null)
+  const [nextBefore, setNextBefore] = useState<string | null>(null)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  // Own error state so a failed load-earlier shows beside its button and never touches a send error.
+  const loadMoreRef = useRef<HTMLButtonElement>(null)
+  const [olderError, setOlderError] = useState<string | null>(null)
+  const [olderNotice, setOlderNotice] = useState('')
+  // Synchronous guard: state lags a render behind, so a fast double click would still fire twice.
+  const olderInFlight = useRef(false)
+  const generation = useRef(createGeneration())
+  // Scroller geometry captured just before older turns are prepended; consumed by the layout effect.
+  const pendingPrepend = useRef<{ height: number; top: number; focusId: string; wasOnButton: boolean } | null>(null)
 
   const activeSessionId = routeSessionId
 
   useEffect(() => {
+    // Taking a new ticket makes any older-page request still in flight stale, so its result is dropped.
+    generation.current.next()
+    olderInFlight.current = false
+    pendingPrepend.current = null
+    setNextBefore(null)
+    setLoadingOlder(false)
+    setOlderError(null)
+    setOlderNotice('')
+
     if (!routeSessionId) {
       setMessages([])
       return
@@ -124,7 +145,11 @@ export function ChatPage() {
         scrollToBottomOnUpdate.current = false
         historyLoadedForSession.current = routeSessionId
 
-        if (data.turns.length > 0) {
+        setNextBefore(data.has_more ? data.next_before : null)
+
+        // With more history behind it, turns[0] is not the conversation's first message, so it
+        // would overwrite the sidebar title with a mid-conversation one.
+        if (data.turns.length > 0 && !data.has_more) {
           const first = data.turns[0]
           upsertChatSession({
             id: routeSessionId,
@@ -147,6 +172,21 @@ export function ChatPage() {
     }
   }, [routeSessionId])
 
+  // Runs before paint and before the scroll effect below: shift the scroller by the height the
+  // prepended turns added so the reader's current message stays where it was.
+  useLayoutEffect(() => {
+    const pending = pendingPrepend.current
+    const el = scrollRef.current
+    if (!pending || !el) return
+    pendingPrepend.current = null
+    el.scrollTop = scrollTopAfterPrepend(pending.top, pending.height, el.scrollHeight)
+    // Keyboard users keep their place: focus lands on the first newly loaded turn, without scrolling.
+    // Not if the reader moved on while waiting (see handleSend's same rule).
+    if (canMoveFocus({ wasOnButton: pending.wasOnButton, active: document.activeElement, button: loadMoreRef.current, body: document.body })) {
+      el.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(pending.focusId)}"]`)?.focus({ preventScroll: true })
+    }
+  }, [messages])
+
   useEffect(() => {
     if (loadingHistory) return
 
@@ -161,6 +201,40 @@ export function ChatPage() {
       historyLoadedForSession.current = null
     }
   }, [messages, livePipeline, loading, loadingHistory, routeSessionId])
+
+  const handleLoadOlder = async () => {
+    const sid = routeSessionId
+    if (!sid || !nextBefore || olderInFlight.current) return
+    const ticket = generation.current.next()
+    const wasOnButton = document.activeElement === loadMoreRef.current
+    olderInFlight.current = true
+    setLoadingOlder(true)
+    setOlderError(null)
+    setOlderNotice('')
+    try {
+      const data = await api.chatHistory(sid, { before: nextBefore })
+      if (!generation.current.isCurrent(ticket)) return
+      const known = new Set(messages.flatMap((m) => (m.role === 'assistant' ? [m.traceId] : [])))
+      const older = turnsToMessages(dropKnownTurns(data.turns, known))
+      const el = scrollRef.current
+      if (older.length > 0 && el) {
+        pendingPrepend.current = { height: el.scrollHeight, top: el.scrollTop, focusId: older[0].id, wasOnButton }
+      }
+      // scrollToBottomOnUpdate stays untouched: a prepend must never pull the reader to the bottom.
+      setMessages((prev) => [...older, ...prev])
+      setNextBefore(data.has_more ? data.next_before : null)
+      if (older.length > 0) setOlderNotice(`Loaded ${older.length} earlier messages`)
+    } catch (err) {
+      if (generation.current.isCurrent(ticket)) {
+        setOlderError(err instanceof Error ? err.message : 'Could not load earlier messages')
+      }
+    } finally {
+      if (generation.current.isCurrent(ticket)) {
+        olderInFlight.current = false
+        setLoadingOlder(false)
+      }
+    }
+  }
 
   const handleSend = useCallback(async () => {
     const text = message.trim()
@@ -327,10 +401,30 @@ export function ChatPage() {
             </div>
           )}
 
+          {!loadingHistory && hasMessages && nextBefore && (
+            <div className="flex flex-col items-center gap-2">
+              {/* Always mounted so the text is announced when it appears. */}
+              <p role="alert" className={olderError ? 'text-body-md text-on-error-container' : 'sr-only'}>
+                {olderError}
+              </p>
+              <button
+                ref={loadMoreRef}
+                type="button"
+                aria-disabled={loadingOlder}
+                aria-busy={loadingOlder}
+                onClick={() => void handleLoadOlder()}
+                className="flex items-center gap-1.5 rounded border border-border-subtle px-3 py-1.5 text-label-md text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface aria-disabled:opacity-60"
+              >
+                <MaterialIcon name={loadingOlder ? 'progress_activity' : olderError ? 'refresh' : 'expand_less'} size={16} className={loadingOlder ? 'animate-spin' : undefined} />
+                {loadingOlder ? 'Loading earlier messages…' : olderError ? 'Retry' : 'Load earlier messages'}
+              </button>
+            </div>
+          )}
+
           {!loadingHistory &&
             messages.map((msg) =>
               msg.role === 'user' ? (
-                <div key={msg.id} className="flex w-full justify-end">
+                <div key={msg.id} data-msg-id={msg.id} tabIndex={-1} className="flex w-full justify-end">
                   <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-surface-container-high px-5 py-3.5 text-body-lg text-on-surface">
                     {msg.imagePreview ? (
                       <div className="mb-2 overflow-hidden rounded-lg border border-border-subtle">
@@ -341,7 +435,7 @@ export function ChatPage() {
                   </div>
                 </div>
               ) : (
-                <div key={msg.id} className="flex w-full flex-col gap-3">
+                <div key={msg.id} data-msg-id={msg.id} tabIndex={-1} className="flex w-full flex-col gap-3">
                   <div className="mb-1 flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container">
                       <MaterialIcon name="smart_toy" size={18} />
@@ -440,6 +534,10 @@ export function ChatPage() {
               missed); sr-only is absolutely positioned, so while empty it takes no space in the flex gap. */}
           <div role="status" className="sr-only">
             {loading ? `Agent Workspace is processing…${liveStep ? ` — ${liveStep.title}` : ''}` : ''}
+          </div>
+
+          <div role="status" className="sr-only">
+            {olderNotice}
           </div>
 
           {loading && (

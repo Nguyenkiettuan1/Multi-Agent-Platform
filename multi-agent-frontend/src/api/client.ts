@@ -128,10 +128,11 @@ export const api = {
     }
   },
 
-  chatHistory: (sessionId: string, limit = 50) =>
-    request<ChatHistoryResponse>(
-      `/api/v1/chat/history?session_id=${encodeURIComponent(sessionId)}&limit=${limit}`,
-    ),
+  chatHistory: (sessionId: string, opts: { limit?: number; before?: string } = {}) => {
+    const params = new URLSearchParams({ session_id: sessionId, limit: String(opts.limit ?? 50) })
+    if (opts.before) params.set('before', opts.before)
+    return request<ChatHistoryResponse>(`/api/v1/chat/history?${params}`)
+  },
 
   chatSessions: (limit = 30) =>
     request<ChatSessionsResponse>(`/api/v1/chat/sessions?limit=${limit}`),
