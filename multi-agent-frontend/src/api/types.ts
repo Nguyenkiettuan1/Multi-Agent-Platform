@@ -130,17 +130,60 @@ export type AuditRecord = {
   created_at?: string | null
 }
 
-export type KnowledgeDocument = {
+export type KnowledgeDocumentSummary = {
   doc_id: string
   title: string
-  source: string
   domain: string
-  parent_doc_id?: string | null
-  chunk_index?: number | null
-  content_length?: number | null
-  has_embedding: boolean
+  source: string
+  chunk_count: number
+  embedded_count: number
+  content_length: number
+  azure_indexed: boolean | null
   created_at?: string | null
   updated_at?: string | null
+}
+
+export type KnowledgeDocumentList = {
+  items: KnowledgeDocumentSummary[]
+  total: number
+  azure_enabled: boolean
+}
+
+export type KnowledgeChunk = {
+  doc_id: string
+  chunk_index: number | null
+  char_count: number
+  has_embedding: boolean
+  content: string
+}
+
+export type KnowledgeDocumentDetail = {
+  doc_id: string
+  title: string
+  domain: string
+  source: string
+  chunk_count: number
+  embedded_count: number
+  azure_enabled: boolean
+  azure_indexed: boolean | null
+  content: string
+  chunks: KnowledgeChunk[]
+}
+
+export type KnowledgeDeleteResult = {
+  doc_id: string
+  deleted_rows: number
+  azure: { enabled: boolean; deleted: number; error: string | null }
+}
+
+export type KnowledgeUploadResult = {
+  status?: string
+  parent_doc_id?: string | null
+  doc_id?: string | null
+  chunks_stored: number
+  embedded_count?: number
+  has_embeddings?: boolean
+  azure?: { enabled: boolean; indexed: number; total: number; error: string | null }
 }
 
 export type ModelsResponse = {
