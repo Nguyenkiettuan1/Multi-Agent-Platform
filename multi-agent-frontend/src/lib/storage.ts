@@ -1,4 +1,5 @@
-const API_KEY_STORAGE = 'multiagent_api_key'
+// The browser no longer holds an API key (auth is a httpOnly cookie); this name is only used to purge old copies.
+const LEGACY_API_KEY_STORAGE = 'multiagent_api_key'
 const SESSIONS_STORAGE = 'multiagent_chat_sessions'
 
 export type ChatSession = {
@@ -7,15 +8,12 @@ export type ChatSession = {
   updatedAt: string
 }
 
-export function getApiKey(): string {
-  return localStorage.getItem(API_KEY_STORAGE) ?? ''
-}
-
-export function setApiKey(key: string): void {
-  if (key.trim()) {
-    localStorage.setItem(API_KEY_STORAGE, key.trim())
-  } else {
-    localStorage.removeItem(API_KEY_STORAGE)
+/** Removes the key an earlier version stored in localStorage, where any script on the page could read it. */
+export function removeLegacyApiKey(): void {
+  try {
+    localStorage.removeItem(LEGACY_API_KEY_STORAGE)
+  } catch {
+    /* storage blocked (private mode, policy): nothing to remove */
   }
 }
 
