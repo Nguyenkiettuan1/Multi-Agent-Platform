@@ -259,7 +259,7 @@ def load_session_history(session_id: str, *, limit: int = 30) -> list[dict[str, 
                 SELECT user_message, response, created_at
                 FROM platform.feedback
                 WHERE session_id = :session_id
-                ORDER BY created_at ASC
+                ORDER BY id DESC
                 LIMIT :limit
             """
             with engine.connect() as conn:
@@ -268,8 +268,9 @@ def load_session_history(session_id: str, *, limit: int = 30) -> list[dict[str, 
                     {"session_id": session_id, "limit": min(limit, 50)},
                 ).mappings().all()
 
+            # Newest N turns, flipped back to oldest-first so the LLM reads them in time order.
             messages: list[dict[str, Any]] = []
-            for row in rows:
+            for row in reversed(rows):
                 if row["user_message"]:
                     messages.append({"role": "user", "content": row["user_message"]})
                 if row["response"]:
@@ -289,34 +290,47 @@ def load_session_history(session_id: str, *, limit: int = 30) -> list[dict[str, 
     return messages
 
 
-def list_session_traces(session_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
-    """Full Q&A traces for a session — for chat UI restore."""
+def list_session_traces(
+    session_id: str, *, limit: int = 50, before_id: int | None = None
+) -> dict[str, Any]:
+    """One page of Q&A traces for chat UI restore: the newest `limit` turns before `before_id`.
+
+    Keyset pagination on id (stable when new turns land mid-scroll, unlike OFFSET). The sort key
+    must be the cursor key: created_at is nullable and is the transaction start time, so it can
+    disagree with insert order and a created_at sort would skip rows. Turns are returned oldest-first; `next_before` is the cursor for the next (older) page.
+    """
     if platform_db_configured():
         try:
             engine = get_platform_engine()
             sql = """
-                SELECT trace_id, session_id, user_message, response, rating, comment, eval_score, created_at
+                SELECT id, trace_id, session_id, user_message, response, rating, comment, eval_score, created_at
                 FROM platform.feedback
                 WHERE session_id = :session_id
-                ORDER BY created_at ASC
-                LIMIT :limit
+                  AND (CAST(:before AS bigint) IS NULL OR id < CAST(:before AS bigint))
+                ORDER BY id DESC
+                LIMIT :fetch
             """
+            page_size = min(limit, 100)
             with engine.connect() as conn:
                 rows = conn.execute(
                     text(sql),
-                    {"session_id": session_id, "limit": min(limit, 100)},
+                    # One extra row only tells us whether an older page exists.
+                    {"session_id": session_id, "before": before_id, "fetch": page_size + 1},
                 ).mappings().all()
-            items = [dict(r) for r in rows]
+            has_more = len(rows) > page_size
+            items = [dict(r) for r in reversed(rows[:page_size])]
+            next_before = str(items[0]["id"]) if has_more else None
             for r in items:
+                r.pop("id")
                 if r.get("created_at"):
                     r["created_at"] = r["created_at"].isoformat()
-            return items
+            return {"turns": items, "has_more": has_more, "next_before": next_before}
         except Exception as exc:
             logger.warning("list_session_traces DB failed: %s", exc)
 
     items = [r for r in list_feedback(limit=limit * 2) if r.session_id == session_id]
     items.sort(key=lambda r: r.created_at or "")
-    return [_record_to_dict(r) for r in items[-limit:]]
+    return {"turns": [_record_to_dict(r) for r in items[-limit:]], "has_more": False, "next_before": None}
 
 
 def list_recent_sessions(*, limit: int = 30) -> list[dict[str, Any]]:

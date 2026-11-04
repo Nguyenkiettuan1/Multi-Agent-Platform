@@ -558,13 +558,29 @@ async def chat_sessions(
 @app.get("/api/v1/chat/history")
 async def chat_history(
     session_id: str,
-    limit: int = 50,
+    limit: int = Query(50, ge=1),
+    before: str | None = None,
     _: str | None = Depends(verify_api_key),
 ):
     from core.intelligence.feedback_store import list_session_traces
 
-    items = list_session_traces(session_id, limit=min(limit, 100))
-    return {"session_id": session_id, "turns": items, "count": len(items)}
+    before_id: int | None = None
+    if before is not None:
+        try:
+            before_id = int(before)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid 'before' cursor") from None
+        # Ids are positive bigints; anything else is a forged cursor, so reject before the DB sees it.
+        if not 0 < before_id <= 2**63 - 1:
+            raise HTTPException(status_code=422, detail="Invalid 'before' cursor")
+    page = list_session_traces(session_id, limit=min(limit, 100), before_id=before_id)
+    return {
+        "session_id": session_id,
+        "turns": page["turns"],
+        "count": len(page["turns"]),
+        "has_more": page["has_more"],
+        "next_before": page["next_before"],
+    }
 
 
 def _chat_message_for_workflow(message: str, attachments: list) -> str:
