@@ -85,6 +85,11 @@ export function parseResponseBody(status: number, contentType: string, text: str
   return contentType.includes('application/json') ? JSON.parse(text) : text
 }
 
+/** Password length as the backend counts it: code points after NFC (a decomposed "ậ" is one character). */
+export function passwordLength(raw: string): number {
+  return [...raw.normalize('NFC')].length
+}
+
 /**
  * Client-side pre-check; the server stays the authority. Lengths count code points, not UTF-16 units, after
  * NFC normalisation, which is how the backend counts (a decomposed "ậ" is one character).
@@ -93,7 +98,7 @@ export function passwordProblem(current: string, rawNext: string, rawConfirm: st
   if (!current) return 'Enter your current password.'
   const next = rawNext.normalize('NFC')
   const confirm = rawConfirm.normalize('NFC')
-  const length = [...next].length
+  const length = passwordLength(next)
   if (length < PASSWORD_MIN_LENGTH) return `New password must be at least ${PASSWORD_MIN_LENGTH} characters.`
   if (length > PASSWORD_MAX_LENGTH) return `New password must be at most ${PASSWORD_MAX_LENGTH} characters.`
   if (next !== confirm) return 'New password and confirmation do not match.'

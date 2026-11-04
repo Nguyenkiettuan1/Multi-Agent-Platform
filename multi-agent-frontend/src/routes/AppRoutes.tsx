@@ -4,6 +4,7 @@ import { UserLayout } from '../components/layout/UserLayout'
 import { DashboardPage } from '../pages/admin/DashboardPage'
 import { KnowledgePage } from '../pages/admin/KnowledgePage'
 import { KnowledgeDocumentPage } from '../pages/admin/KnowledgeDocumentPage'
+import { UsersPage } from '../pages/admin/UsersPage'
 import { FeedbackPage } from '../pages/admin/FeedbackPage'
 import { AuditPage } from '../pages/admin/AuditPage'
 import { ModelsPage } from '../pages/admin/ModelsPage'
@@ -33,6 +34,7 @@ export function AppRoutes() {
             <Route index element={<DashboardPage />} />
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="knowledge/:docId" element={<KnowledgeDocumentPage />} />
+            <Route path="users" element={<UsersPage />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="audit" element={<AuditPage />} />
             <Route path="models" element={<ModelsPage />} />
