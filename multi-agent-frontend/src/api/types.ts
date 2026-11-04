@@ -73,7 +73,6 @@ export type ChatAttachment = {
 export type ChatRequest = {
   message: string
   session_id?: string | null
-  user_id?: string
   attachments?: ChatAttachment[]
 }
 

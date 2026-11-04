@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { canMoveFocus, createGeneration, dropKnownTurns, scrollTopAfterPrepend } from '../src/lib/chatHistory.ts'
+import {
+  appendSessionPage,
+  canMoveFocus,
+  createGeneration,
+  dropKnownTurns,
+  scrollTopAfterPrepend,
+  sessionIdFromErrorPayload,
+  turnOutcome,
+} from '../src/lib/chatHistory.ts'
 
 const t = (id: string) => ({ trace_id: id })
 const ids = (turns: Array<{ trace_id: string }>) => turns.map((x) => x.trace_id)
@@ -76,4 +84,66 @@ test('canMoveFocus: user moved to another control, such as the textarea', () => 
 
 test('canMoveFocus: button focused now but it was not when the load started', () => {
   assert.equal(canMoveFocus({ wasOnButton: false, active: 'btn', button: 'btn', body: 'body' }), false)
+})
+
+test('turnOutcome: completed and a missing status both render the answer', () => {
+  assert.deepEqual(turnOutcome('completed'), { kind: 'answer' })
+  assert.deepEqual(turnOutcome(undefined), { kind: 'answer' })
+  assert.deepEqual(turnOutcome(null), { kind: 'answer' })
+})
+
+test('turnOutcome: failed shows a fixed note, never server text', () => {
+  assert.deepEqual(turnOutcome('failed'), { kind: 'note', text: 'No answer — the request failed' })
+})
+
+test('turnOutcome: incomplete says the request did not finish', () => {
+  assert.deepEqual(turnOutcome('incomplete'), { kind: 'note', text: 'No answer — the request did not finish' })
+})
+
+test('turnOutcome: an unknown future status degrades to the answer, not a crash', () => {
+  assert.deepEqual(turnOutcome('archived'), { kind: 'answer' })
+})
+
+const s = (id: string) => ({ session_id: id })
+
+test('appendSessionPage appends the next page after the current list', () => {
+  const merged = appendSessionPage([s('a'), s('b')], [s('c')])
+  assert.deepEqual(merged.map((x) => x.session_id), ['a', 'b', 'c'])
+})
+
+test('appendSessionPage drops sessions already listed (a new chat shifted the page)', () => {
+  const merged = appendSessionPage([s('a'), s('b')], [s('b'), s('c'), s('c')])
+  assert.deepEqual(merged.map((x) => x.session_id), ['a', 'b', 'c'])
+})
+
+test('appendSessionPage with an empty page returns an equal list without mutating', () => {
+  const current = [s('a')]
+  const merged = appendSessionPage(current, [])
+  assert.deepEqual(merged, [s('a')])
+  assert.deepEqual(current, [s('a')])
+})
+
+test('appendSessionPage: a session that moved from the tail to the top keeps its new position', () => {
+  const merged = appendSessionPage([s('a'), s('b'), s('c'), s('x'), s('d')], [s('x'), s('a'), s('b')])
+  assert.deepEqual(merged.map((i) => i.session_id), ['a', 'b', 'c', 'x', 'd'])
+  // fresh page 1 first, previously loaded list after it
+  const refreshed = appendSessionPage([s('x'), s('a'), s('b')], [s('a'), s('b'), s('c'), s('x'), s('d')])
+  assert.deepEqual(refreshed.map((i) => i.session_id), ['x', 'a', 'b', 'c', 'd'])
+})
+
+test('sessionIdFromErrorPayload reads a top-level session_id (SSE error event)', () => {
+  assert.equal(sessionIdFromErrorPayload({ message: 'boom', session_id: 'abc123' }), 'abc123')
+})
+
+test('sessionIdFromErrorPayload reads session_id inside an object detail (POST /chat body)', () => {
+  assert.equal(sessionIdFromErrorPayload({ detail: { message: 'boom', session_id: 'abc123' } }), 'abc123')
+})
+
+test('sessionIdFromErrorPayload returns null for anything else', () => {
+  assert.equal(sessionIdFromErrorPayload({ detail: 'Session not found' }), null)
+  assert.equal(sessionIdFromErrorPayload({ session_id: '' }), null)
+  assert.equal(sessionIdFromErrorPayload({ session_id: 42 }), null)
+  assert.equal(sessionIdFromErrorPayload(null), null)
+  assert.equal(sessionIdFromErrorPayload('text'), null)
+  assert.equal(sessionIdFromErrorPayload(undefined), null)
 })

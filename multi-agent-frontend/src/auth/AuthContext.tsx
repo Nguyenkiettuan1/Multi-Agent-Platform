@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api } from '../api/client'
 import type { User } from '../api/types'
 import { AUTH_UNAUTHORIZED_EVENT } from '../lib/auth'
-import { removeLegacyApiKey } from '../lib/storage'
+import { removeLegacyApiKey, removeLegacyChatSessions } from '../lib/storage'
 
 // signedOut marks an explicit Sign out, so the guard sends the next person to a bare /login instead of
 // carrying the previous user's path in ?next=.
@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Credential cleanup belongs with auth startup: a key left by an older build must not stay readable.
     removeLegacyApiKey()
+    removeLegacyChatSessions()
 
     let cancelled = false
     api

@@ -1,3 +1,4 @@
+import { sessionIdFromErrorPayload } from '../lib/chatHistory'
 import { AUTH_UNAUTHORIZED_EVENT, parseResponseBody, parseRetryAfter } from '../lib/auth'
 import type {
   AdminOverview,
@@ -27,12 +28,15 @@ class ApiError extends Error {
   status: number
   /** Seconds from the Retry-After header (429), when the server sent one. */
   retryAfter: number | null
+  /** Set when a chat call failed after the server had already created the session (see sessionIdFromErrorPayload). */
+  sessionId: string | null
 
-  constructor(message: string, status: number, retryAfter: number | null = null) {
+  constructor(message: string, status: number, retryAfter: number | null = null, sessionId: string | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.retryAfter = retryAfter
+    this.sessionId = sessionId
   }
 }
 
@@ -46,22 +50,33 @@ type FailureOptions = {
 }
 
 async function toApiError(res: Response, opts: FailureOptions = {}): Promise<ApiError> {
-  const error = new ApiError(await parseError(res), res.status, parseRetryAfter(res.headers.get('Retry-After')))
+  const text = await res.text()
+  const error = new ApiError(
+    parseError(res, text),
+    res.status,
+    parseRetryAfter(res.headers.get('Retry-After')),
+    sessionIdFromErrorPayload(parseJson(text)),
+  )
   if (res.status === 401 && !opts.credentials401) {
     window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT))
   }
   return error
 }
 
-async function parseError(res: Response): Promise<string> {
-  const text = await res.text()
-  if (!text) return res.statusText || `HTTP ${res.status}`
+function parseJson(text: string): unknown {
   try {
-    const json = JSON.parse(text) as { detail?: unknown }
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+function parseError(res: Response, text: string): string {
+  if (!text) return res.statusText || `HTTP ${res.status}`
+  const json = parseJson(text) as { detail?: unknown } | undefined
+  if (json && typeof json === 'object') {
     if (typeof json.detail === 'string') return json.detail
     if (json.detail) return JSON.stringify(json.detail)
-  } catch {
-    /* plain text */
   }
   return text
 }
@@ -140,7 +155,7 @@ export const api = {
         } else if (event === 'complete') {
           yield payload as ChatResponse
         } else if (event === 'error') {
-          throw new ApiError(String(payload.message ?? 'Stream error'), 500)
+          throw new ApiError(String(payload.message ?? 'Stream error'), 500, null, sessionIdFromErrorPayload(payload))
         }
       }
     }
@@ -152,9 +167,7 @@ export const api = {
     return request<ChatHistoryResponse>(`/api/v1/chat/history?${params}`)
   },
 
-  // A bare number is the pre-pagination call shape (UserSidebar); new callers pass { limit, before }.
-  chatSessions: (opts: number | { limit?: number; before?: string } = {}) => {
-    const { limit = 30, before } = typeof opts === 'number' ? { limit: opts } : opts
+  chatSessions: ({ limit = 30, before }: { limit?: number; before?: string } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) })
     if (before) params.set('before', before)
     return request<ChatSessionsResponse>(`/api/v1/chat/sessions?${params}`)
