@@ -37,9 +37,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_trace ON audit_log(trace_id);
-CREATE INDEX idx_audit_user ON audit_log(user_id);
-CREATE INDEX idx_audit_created ON audit_log(created_at);
-CREATE INDEX idx_task_dag_session ON task_dag(session_id);
+CREATE INDEX IF NOT EXISTS idx_audit_trace ON audit_log(trace_id);
+CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_task_dag_session ON task_dag(session_id);
 
 -- LangGraph PostgresSaver tạo bảng checkpoints tự động qua checkpointer.setup()
