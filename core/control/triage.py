@@ -17,9 +17,24 @@ from core.control.guardrails import scan_input
 from workflows.state import IntentType, TriageResult
 
 
+_ASCII_DEM_COUNT = re.compile(
+    r"(?<!\w)dem(?=\s+(?:s[oố]\s+)?(?:l[ưu][ơo]ng\s+)?"
+    r"(?:h[oợ]p\s+[dđ][oồ]ng|kh[aá]ch\s+h[aà]ng|b[aả]n\s+ghi|records?)(?!\w))"
+)
+
+
 def _normalize(msg: str) -> str:
     """Normalize Vietnamese text — supports input without diacritics."""
-    lower = msg.lower().strip()
+    # NFC first so a decomposed "đếm" (NFD input) is seen as one accented word.
+    lower = unicodedata.normalize("NFC", msg.lower().strip())
+    # "đếm" (count), "đêm" (night) and "đem" (bring) all collapse to "dem" once
+    # diacritics go, so the verb must be recognised here while accents still exist.
+    lower = re.sub(r"(?<!\w)đếm(?!\w)", "count", lower)
+    # Plain-ASCII "dem" (typed without diacritics) is ambiguous, so accept it only
+    # before a data noun. Must run before "đ"->"d" so accented "đem/đêm" never matches.
+    lower = _ASCII_DEM_COUNT.sub("count", lower)
+    # "đ" has no Unicode decomposition, so map it explicitly ("hợp đồng" -> "hop dong").
+    lower = lower.replace("đ", "d")
     nfkd = unicodedata.normalize("NFKD", lower)
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
@@ -115,7 +130,11 @@ def build_triage_result(
     )
 
 
-def _try_fast_path_rules(msg: str, security_flags: list[str]) -> TriageResult | None:
+def _try_fast_path_rules(
+    msg: str,
+    security_flags: list[str],
+    chat_history: list[dict] | None = None,
+) -> TriageResult | None:
     """Only rule-certain cases — no LLM needed."""
     if _is_capability_question(msg):
         return build_triage_result(IntentType.GENERAL, security_flags=security_flags)
@@ -129,7 +148,9 @@ def _try_fast_path_rules(msg: str, security_flags: list[str]) -> TriageResult | 
     needs_action = _needs_action(msg)
     capability_count = sum([needs_db, needs_legal, needs_research, needs_action])
 
-    if needs_db and capability_count == 1:
+    # With chat history a weak signal ("bao cao", "danh sach") may be a follow-up
+    # about something else, so leave it to LLM triage.
+    if needs_db and capability_count == 1 and (not chat_history or _has_strong_db_signal(msg)):
         return build_triage_result(IntentType.DB_ONLY, security_flags=security_flags)
 
     return None
@@ -231,7 +252,7 @@ async def analyze_triage_async(
         )
 
     msg = _normalize(user_message)
-    fast = _try_fast_path_rules(msg, security.flags)
+    fast = _try_fast_path_rules(msg, security.flags, chat_history)
     if fast:
         return fast
 
@@ -292,16 +313,24 @@ def detect_capabilities(msg: str) -> dict[str, bool]:
     }
 
 
+# Matched on word boundaries: "db" must not hit "feedback", "dem" must not hit "demo".
+# Entity nouns alone ("hop dong", "khach hang") are deliberately absent — a concept
+# question like "hop dong la gi?" is not a data question.
+# "đếm", and ASCII "dem" before a data noun, are rewritten to "count" by _normalize
+# (see there why this cannot be done after diacritics are stripped).
+_STRONG_DB_SIGNALS = re.compile(
+    r"\b(bao nhieu|count|select|liet ke|sql|database|db|query|truy van|records|trong he thong)\b"
+)
+# Data-ish but ambiguous ("bao cao" may be a report to write, not to query).
+_WEAK_DB_SIGNALS = re.compile(r"\b(danh sach|thong ke|so lieu|bao cao)\b")
+
+
+def _has_strong_db_signal(msg: str) -> bool:
+    return bool(_STRONG_DB_SIGNALS.search(msg))
+
+
 def _needs_db(msg: str) -> bool:
-    data_signals = [
-        "bao nhieu", "dem", "danh sach", "thong ke", "so lieu", "bao cao",
-        "count", "select", "liet ke", "hop dong", "khach hang",
-    ]
-    system_signals = [
-        "database", "db", "sql", "bang", "query", "truy van",
-        "records", "du lieu trong he thong", "trong he thong",
-    ]
-    return any(k in msg for k in data_signals) or any(k in msg for k in system_signals)
+    return _has_strong_db_signal(msg) or bool(_WEAK_DB_SIGNALS.search(msg))
 
 
 def _needs_legal(msg: str) -> bool:

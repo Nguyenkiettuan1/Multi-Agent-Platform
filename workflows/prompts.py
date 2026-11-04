@@ -29,8 +29,13 @@ Return JSON:
   "is_greeting": false
 }
 
-assigned_agent must be one of: general-agent, db-worker, research-worker, legal-agent, action-worker, code-worker
+assigned_agent must be one of: {agent_ids}
 """
+
+
+def render_planner_system(agent_ids: list[str]) -> str:
+    # str.replace, not str.format: the JSON example above contains literal braces.
+    return PLANNER_SYSTEM.replace("{agent_ids}", ", ".join(agent_ids))
 
 REVIEWER_SYSTEM = """You are the Reviewer. Check whether worker results satisfy the request.
 Return JSON: {"status": "pass"|"fail", "notes": "brief reason"}
