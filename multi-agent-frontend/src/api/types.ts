@@ -6,6 +6,8 @@ export type ChatTurn = {
   rating?: number | null
   eval_score?: number | null
   created_at?: string | null
+  /** Absent before the backend records it; treat missing as 'completed'. */
+  status?: 'completed' | 'failed' | 'incomplete'
 }
 
 export type ChatSessionSummary = {
@@ -23,6 +25,8 @@ export type ChatHistoryResponse = {
   session_id: string
   turns: ChatTurn[]
   count: number
+  has_more: boolean
+  next_before: string | null
 }
 
 export type ChatAttachment = {
