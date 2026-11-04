@@ -7,7 +7,10 @@ import type {
   ChatSessionsResponse,
   FeedbackRequest,
   HealthResponse,
-  KnowledgeDocument,
+  KnowledgeDeleteResult,
+  KnowledgeDocumentDetail,
+  KnowledgeDocumentList,
+  KnowledgeUploadResult,
   ListResponse,
   ModelsResponse,
   PipelineStep,
@@ -141,13 +144,22 @@ export const api = {
 
   adminOverview: () => request<AdminOverview>('/api/v1/admin/overview'),
 
-  adminKnowledge: (params?: { limit?: number; domain?: string }) => {
+  adminKnowledgeDocuments: (params?: { limit?: number; offset?: number; domain?: string }) => {
     const search = new URLSearchParams()
     if (params?.limit) search.set('limit', String(params.limit))
+    if (params?.offset) search.set('offset', String(params.offset))
     if (params?.domain) search.set('domain', params.domain)
     const qs = search.toString()
-    return request<ListResponse<KnowledgeDocument>>(`/api/v1/admin/knowledge${qs ? `?${qs}` : ''}`)
+    return request<KnowledgeDocumentList>(`/api/v1/admin/knowledge/documents${qs ? `?${qs}` : ''}`)
   },
+
+  adminKnowledgeDocument: (docId: string) =>
+    request<KnowledgeDocumentDetail>(`/api/v1/admin/knowledge/documents/${encodeURIComponent(docId)}`),
+
+  deleteKnowledgeDocument: (docId: string) =>
+    request<KnowledgeDeleteResult>(`/api/v1/admin/knowledge/documents/${encodeURIComponent(docId)}`, {
+      method: 'DELETE',
+    }),
 
   adminFeedback: (params?: { limit?: number; min_rating?: number }) => {
     const search = new URLSearchParams()
@@ -185,7 +197,7 @@ export const api = {
     form.append('file', file)
     if (options?.domain) form.append('domain', options.domain)
     if (options?.preview_only) form.append('preview_only', 'true')
-    return request<Record<string, unknown>>('/api/v1/admin/knowledge/upload', {
+    return request<KnowledgeUploadResult>('/api/v1/admin/knowledge/upload', {
       method: 'POST',
       body: form,
     })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { TopNavBar } from './TopNavBar'
 import { UserSidebar } from './UserSidebar'
@@ -6,10 +6,37 @@ import { MaterialIcon } from '../ui/MaterialIcon'
 
 export function UserLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  // Modal behaviour: focus enters the drawer, Esc closes it, focus goes back to the menu button.
+  // The drawer is md:hidden, so crossing md closes it; otherwise inert would leave the page dead.
+  useEffect(() => {
+    if (!drawerOpen) return
+    const menuButton = menuButtonRef.current
+    closeButtonRef.current?.focus()
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false)
+    }
+    const desktop = window.matchMedia('(min-width: 48rem)')
+    const onBreakpoint = (e: MediaQueryListEvent) => {
+      if (e.matches) setDrawerOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    desktop.addEventListener('change', onBreakpoint)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      desktop.removeEventListener('change', onBreakpoint)
+      menuButton?.focus()
+    }
+  }, [drawerOpen])
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface text-on-surface">
-      <TopNavBar onMenuClick={() => setDrawerOpen(true)} />
+      {/* The header is position: fixed, so this wrapper takes no layout space. */}
+      <div inert={drawerOpen}>
+        <TopNavBar onMenuClick={() => setDrawerOpen(true)} menuButtonRef={menuButtonRef} />
+      </div>
 
       <div className="flex min-h-0 flex-1 pt-16">
         <div className="hidden md:flex">
@@ -21,16 +48,33 @@ export function UserLayout() {
             <button
               type="button"
               aria-label="Close menu"
+              tabIndex={-1}
               className="absolute inset-0 bg-primary/20 backdrop-blur-sm"
               onClick={() => setDrawerOpen(false)}
             />
-            <aside className="absolute bottom-0 left-0 top-14 flex w-[280px] flex-col border-r border-border-subtle bg-surface-sidebar transition-transform">
-              <UserSidebar className="border-0" onNavigate={() => setDrawerOpen(false)} />
-            </aside>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation menu"
+              className="absolute bottom-0 left-0 top-16 flex w-[280px] flex-col border-r border-border-subtle bg-surface-sidebar"
+            >
+              <div className="flex justify-end px-2 pt-2">
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setDrawerOpen(false)}
+                  className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high"
+                >
+                  <MaterialIcon name="close" />
+                </button>
+              </div>
+              <UserSidebar className="min-h-0 flex-1 border-0 pt-0" onNavigate={() => setDrawerOpen(false)} />
+            </div>
           </div>
         )}
 
-        <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:ml-sidebar-width">
+        <main inert={drawerOpen} className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:ml-sidebar-width">
           <Outlet />
         </main>
       </div>

@@ -120,15 +120,93 @@ def describe_index(index_name: str | None = None) -> dict[str, Any]:
     }
 
 
+def _search_client():
+    """Single SearchClient factory shared by every write path to the knowledge index."""
+    from azure.search.documents import SearchClient
+
+    settings = get_settings()
+    return SearchClient(
+        endpoint=settings.azure_search_endpoint,
+        index_name=settings.azure_search_index_name or DEFAULT_INDEX_NAME,
+        credential=_credential(),
+    )
+
+
+def _to_index_doc(row: Any) -> dict[str, Any]:
+    """Map a knowledge_documents row to the index schema (key id = doc_id)."""
+    return {
+        "id": row["doc_id"],
+        "doc_id": row["doc_id"],
+        "title": row["title"],
+        "content": row["content"],
+        "domain": row["domain"],
+        "source": row["source"],
+    }
+
+
+# Azure rejects indexing batches above 1000 actions.
+_MAX_BATCH = 1000
+
+
+class AzureBatchRejected(RuntimeError):
+    """Azure answered HTTP 207 with per-key failures; the SDK does not raise for those."""
+
+
+def _check_results(results: list, expected: int, op: str) -> None:
+    """Raise unless every key succeeded. Deleting a missing key succeeds, so any failure is real."""
+    failed = [getattr(r, "status_code", None) for r in results if not r.succeeded]
+    if failed or len(results) != expected:
+        raise AzureBatchRejected(
+            f"Azure {op}: {len(failed)} of {expected} keys rejected "
+            f"(status codes {sorted(set(failed))}), {len(results)} results returned"
+        )
+
+
+def _upload_batches(docs: list[dict[str, Any]], *, strict: bool) -> int:
+    """Upload in batches of <=1000; returns accepted count. strict: raise on any rejected key."""
+    accepted = 0
+    with _search_client() as client:
+        for start in range(0, len(docs), _MAX_BATCH):
+            batch = docs[start:start + _MAX_BATCH]
+            results = client.upload_documents(documents=[_to_index_doc(d) for d in batch])
+            if strict:
+                _check_results(results, len(batch), "upload")
+            accepted += sum(1 for r in results if r.succeeded)
+    return accepted
+
+
+def index_chunks(docs: list[dict[str, Any]]) -> tuple[int, int]:
+    """Upload rows (doc_id, title, content, domain, source) to Azure.
+
+    All-or-raise: any rejected key raises AzureBatchRejected. Returns (succeeded, total).
+    """
+    if not docs:
+        return 0, 0
+    return _upload_batches(docs, strict=True), len(docs)
+
+
+def delete_by_ids(ids: list[str]) -> int:
+    """Delete documents by key; returns len(ids). Missing keys succeed, so retrying is safe.
+
+    Transport errors and per-key rejections (AzureBatchRejected) both raise: the caller must
+    know the index was not cleaned.
+    """
+    if not ids:
+        return 0
+    with _search_client() as client:
+        for start in range(0, len(ids), _MAX_BATCH):
+            batch = ids[start:start + _MAX_BATCH]
+            results = client.delete_documents(documents=[{"id": i} for i in batch])
+            _check_results(results, len(batch), "delete")
+    return len(ids)
+
+
 def upload_documents_from_pg(*, domain: str | None = None) -> tuple[int, int]:
     """Upload app.knowledge_documents rows to Azure Search. Returns (ok, total)."""
     _require_azure_search()
     from sqlalchemy import create_engine, text
 
-    from azure.search.documents import SearchClient
-
     settings = get_settings()
-    index_name = settings.azure_search_index_name or DEFAULT_INDEX_NAME
     engine = create_engine(settings.migrate_database_url or settings.database_url)
 
     domain_filter = "WHERE domain = :domain" if domain else ""
@@ -143,27 +221,8 @@ def upload_documents_from_pg(*, domain: str | None = None) -> tuple[int, int]:
     with engine.connect() as conn:
         rows = conn.execute(text(sql), params).mappings().all()
 
-    if not rows:
+    # Bulk script contract: report (ok, total) instead of raising on per-key rejections.
+    docs = list(rows)
+    if not docs:
         return 0, 0
-
-    client = SearchClient(
-        endpoint=settings.azure_search_endpoint,
-        index_name=index_name,
-        credential=_credential(),
-    )
-
-    docs = [
-        {
-            "id": r["doc_id"],
-            "doc_id": r["doc_id"],
-            "title": r["title"],
-            "content": r["content"],
-            "domain": r["domain"],
-            "source": r["source"],
-        }
-        for r in rows
-    ]
-
-    result = client.upload_documents(documents=docs)
-    succeeded = sum(1 for r in result if r.succeeded)
-    return succeeded, len(docs)
+    return _upload_batches(docs, strict=False), len(docs)
