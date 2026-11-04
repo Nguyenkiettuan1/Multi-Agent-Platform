@@ -2,7 +2,9 @@ import type { Citation } from '../api/types'
 
 const REFS_MARKER = '## References'
 const LEGACY_REFS_MARKER = '## Nguồn tham khảo'
-const CITATION_REF_RE = /\[([DW]\d+)\]/g
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/
+// Code spans come first in the alternation so a ref inside backticks is consumed as code, not as a ref.
+const CODE_OR_REF_RE = /(`+)(.+?)\1(?!`)|(!?)\[([DW]\d+)\](?!\()/g
 const REF_LINE_RE = /-\s*\*\*\[([DW]\d+)\]\*\*\s*(.+?)\s*—\s*(https?:\/\/\S+)/g
 
 export function stripReferencesBlock(text: string): string {
@@ -69,24 +71,49 @@ export function parseCitationsFromResponse(content: string): { body: string; cit
   return { body, citations }
 }
 
-export function splitCitationRefs(text: string): Array<{ type: 'text'; value: string } | { type: 'ref'; refId: string }> {
-  const parts: Array<{ type: 'text'; value: string } | { type: 'ref'; refId: string }> = []
-  let lastIndex = 0
+// A character is already escaped when an odd number of backslashes precedes it (`\\` is an escaped backslash).
+function isEscaped(line: string, index: number): boolean {
+  let backslashes = 0
+  while (line[index - 1 - backslashes] === '\\') backslashes++
+  return backslashes % 2 === 1
+}
 
-  for (const match of text.matchAll(CITATION_REF_RE)) {
-    const index = match.index ?? 0
-    if (index > lastIndex) {
-      parts.push({ type: 'text', value: text.slice(lastIndex, index) })
-    }
-    parts.push({ type: 'ref', refId: match[1] })
-    lastIndex = index + match[0].length
-  }
+/**
+ * Rewrite `[D1]` refs into markdown links (`[D1](#cite-D1)`) so the whole answer can go through a single
+ * markdown parse; splitting the text first would break paragraphs, lists and blockquotes. Every ref is
+ * linked, known or not: the renderer decides what to show for a ref without a citation (restored chats
+ * have none). A `!` right before a ref is escaped, otherwise `![D1](...)` would parse as an image.
+ *
+ * Line-based scanner; known limits (not handled): fences inside blockquotes or 4-space list items,
+ * indented code blocks, code spans that cross lines, `[D1]: url` definitions, and a bare URL glued to a ref.
+ */
+export function linkCitationRefs(body: string): string {
+  let fence: { char: string; length: number } | null = null
 
-  if (lastIndex < text.length) {
-    parts.push({ type: 'text', value: text.slice(lastIndex) })
-  }
-
-  return parts
+  return body
+    .split('\n')
+    .map((line) => {
+      const open = FENCE_RE.exec(line)
+      if (fence) {
+        if (open && open[1][0] === fence.char && open[1].length >= fence.length && line.trim() === open[1]) fence = null
+        return line
+      }
+      if (open) {
+        fence = { char: open[1][0], length: open[1].length }
+        return line
+      }
+      return line.replace(
+        CODE_OR_REF_RE,
+        (match, _ticks, _code, bang: string | undefined, refId: string | undefined, offset: number) => {
+          if (!refId) return match
+          // `\[D1]` is literal text the author escaped on purpose; linking it would print the link syntax.
+          if (!bang && isEscaped(line, offset)) return match
+          const prefix = bang ? (isEscaped(line, offset) ? '!' : '\\!') : ''
+          return `${prefix}[${refId}](#cite-${refId})`
+        },
+      )
+    })
+    .join('\n')
 }
 
 export function citationMap(citations: Citation[]): Map<string, Citation> {

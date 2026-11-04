@@ -9,6 +9,7 @@ export function MaterialIcon({ name, filled = false, className = '', size }: Mat
   const style = size ? { fontSize: size } : undefined
   return (
     <span
+      aria-hidden="true"
       className={`material-symbols-outlined ${filled ? 'icon-fill' : ''} ${className}`}
       style={style}
     >

@@ -1,18 +1,21 @@
-import { Link } from 'react-router-dom'
+import type { Ref } from 'react'
+import { Link, NavLink } from 'react-router-dom'
 import { MaterialIcon } from '../ui/MaterialIcon'
 
 type TopNavBarProps = {
   variant?: 'user' | 'admin'
   showAdminLink?: boolean
   onMenuClick?: () => void
+  menuButtonRef?: Ref<HTMLButtonElement>
 }
 
-export function TopNavBar({ variant = 'user', showAdminLink = true, onMenuClick }: TopNavBarProps) {
+export function TopNavBar({ variant = 'user', showAdminLink = true, onMenuClick, menuButtonRef }: TopNavBarProps) {
   return (
     <header className="fixed top-0 left-0 z-50 flex h-16 w-full items-center justify-between border-b border-border-subtle bg-surface px-gutter-md">
       <div className="flex items-center gap-4">
         {onMenuClick && (
           <button
+            ref={menuButtonRef}
             type="button"
             aria-label="Menu"
             onClick={onMenuClick}
@@ -21,25 +24,20 @@ export function TopNavBar({ variant = 'user', showAdminLink = true, onMenuClick 
             <MaterialIcon name="menu" />
           </button>
         )}
-        <span className="text-headline-md font-headline-md font-bold text-primary">Agent Workspace</span>
-        {showAdminLink && variant === 'user' && (
+        <span className="text-headline-md font-headline-md text-primary">Agent Workspace</span>
+        {(variant === 'admin' || showAdminLink) && (
           <nav className="ml-8 hidden h-full md:flex">
-            <Link
+            <NavLink
               to="/admin"
-              className="flex h-full items-center border-b-2 border-secondary px-4 text-headline-sm font-bold text-secondary transition-colors hover:bg-surface-container-low"
+              aria-current="true"
+              className={({ isActive }) =>
+                `flex h-full items-center border-b-2 px-4 text-headline-sm font-bold transition-colors hover:bg-surface-container-low ${
+                  isActive ? 'border-secondary text-secondary' : 'border-transparent text-on-surface-variant'
+                }`
+              }
             >
               Admin
-            </Link>
-          </nav>
-        )}
-        {variant === 'admin' && (
-          <nav className="ml-8 hidden h-full md:flex">
-            <Link
-              to="/admin"
-              className="flex h-full items-center border-b-2 border-secondary px-4 text-headline-sm font-bold text-secondary transition-colors hover:bg-surface-container-low"
-            >
-              Admin
-            </Link>
+            </NavLink>
           </nav>
         )}
       </div>
