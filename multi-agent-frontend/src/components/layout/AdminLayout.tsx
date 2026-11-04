@@ -32,6 +32,7 @@ export function AdminLayout() {
                 </div>
                 <button
                   type="button"
+                  aria-label="Close menu"
                   onClick={() => setDrawerOpen(false)}
                   className="rounded-full p-2 text-on-surface-variant hover:bg-surface-container-high"
                 >

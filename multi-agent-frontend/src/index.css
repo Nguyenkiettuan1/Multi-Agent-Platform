@@ -36,6 +36,17 @@
   --color-error: #ba1a1a;
   --color-on-tertiary-fixed: #370e00;
   --color-citation-web: #ea580c;
+  /* Citation chip colours, the raw tokens darkened/tinted so text meets 4.5:1 on its tint:
+     knowledge 6.68 rest / 6.31 hover, web 4.99 / 4.75. */
+  --color-citation-knowledge-text: #1c4ab0;
+  --color-citation-knowledge-tint: #e5ecfd;
+  --color-citation-knowledge-tint-hover: #dce6fc;
+  --color-citation-web-text: #b04209;
+  --color-citation-web-tint: #fcebe2;
+  --color-citation-web-tint-hover: #fce4d8;
+  /* Filled rating stars: status-warning (#f59e0b) is 2.04:1 on surface; this is 3.19:1 on white
+     and 3.03:1 on #f8f9ff, clearing the 3:1 non-text rule. */
+  --color-rating: #d97706;
   --color-surface-variant: #d3e4fe;
   --color-secondary-fixed-dim: #b4c5ff;
   --color-inverse-primary: #bec6e0;
@@ -64,6 +75,73 @@
 
   --font-body-code: "JetBrains Mono", monospace;
   --font-sans: "Inter", sans-serif;
+
+  /* Fixed rem role scale (Operate surface, one family). Steps are ~1.07 between the small body and
+     label sizes and 1.11-1.4 between the headings; weight (400/500/600) separates roles of equal size.
+     title-md is the same size as headline-sm (1.125rem); the two differ only by role.
+     Tailwind only emits text-<role> / font-<role> when these tokens exist. */
+  --text-display-lg: 1.75rem;
+  --text-display-lg--line-height: 2.25rem;
+  --text-display-lg--font-weight: 600;
+  --text-headline-md: 1.25rem;
+  --text-headline-md--line-height: 1.75rem;
+  --text-headline-md--font-weight: 600;
+  --text-headline-sm: 1.125rem;
+  --text-headline-sm--line-height: 1.625rem;
+  --text-headline-sm--font-weight: 600;
+  --text-title-md: 1.125rem;
+  --text-title-md--line-height: 1.625rem;
+  --text-title-md--font-weight: 600;
+  --text-title-sm: 1rem;
+  --text-title-sm--line-height: 1.5rem;
+  --text-title-sm--font-weight: 600;
+  --text-body-lg: 1rem;
+  --text-body-lg--line-height: 1.625rem;
+  --text-body-lg--font-weight: 400;
+  --text-body-md: 0.9375rem;
+  --text-body-md--line-height: 1.5rem;
+  --text-body-md--font-weight: 400;
+  --text-body-code: 0.875rem;
+  --text-body-code--line-height: 1.375rem;
+  /* index.html loads JetBrains Mono at 400/500 only; a heavier weight would be faux-bolded. */
+  --text-body-code--font-weight: 400;
+  --text-label-md: 0.875rem;
+  --text-label-md--line-height: 1.25rem;
+  --text-label-md--font-weight: 500;
+  --text-label-sm: 0.8125rem;
+  --text-label-sm--line-height: 1.125rem;
+  --text-label-sm--font-weight: 500;
+
+  /* Standalone font-<role> weight utilities already used in markup. */
+  --font-weight-display-lg: 600;
+  --font-weight-headline-md: 600;
+  --font-weight-headline-sm: 600;
+  --font-weight-label-md: 500;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  /* #686a72 is 5.39:1 on #ffffff and 5.13:1 on #f8f9ff; outline (#76777d) is
+     only 4.46 / 4.25. Opacity 1 is a deliberate safeguard so no browser default dims it. */
+  ::placeholder {
+    color: #686a72;
+    opacity: 1;
+  }
+
+  ::selection {
+    background-color: var(--color-secondary-fixed-dim);
+    color: var(--color-on-secondary-fixed);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 2px;
+  }
 }
 
 body {

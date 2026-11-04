@@ -1,11 +1,20 @@
 import type { PipelineStep } from '../../api/types'
 import { MaterialIcon } from '../ui/MaterialIcon'
 import { formatAgentName } from '../../lib/format'
+import { dedupeSteps } from '../../lib/pipeline'
 
 type Props = {
   steps: PipelineStep[]
   live?: boolean
   defaultExpanded?: boolean
+}
+
+// The status icon is aria-hidden, so screen readers get the status from this text instead.
+const STATUS_LABEL: Record<PipelineStep['status'], string> = {
+  running: 'Running',
+  done: 'Done',
+  failed: 'Failed',
+  skipped: 'Skipped',
 }
 
 function stepIcon(status: PipelineStep['status']): string {
@@ -74,10 +83,11 @@ export function AgentPipelinePanel({ steps, live = false, defaultExpanded = true
                     step.status === 'running' ? 'text-primary' : 'text-on-surface'
                   }`}
                 >
+                  <span className="sr-only">{STATUS_LABEL[step.status]}: </span>
                   {step.title}
                 </span>
                 {step.agent ? (
-                  <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-border-subtle bg-surface-container-lowest px-1.5 py-0.5 text-[10px] font-medium text-on-surface-variant">
                     <MaterialIcon name={agentIcon(step.agent)} size={12} />
                     {formatAgentName(step.agent)}
                   </span>
@@ -92,17 +102,4 @@ export function AgentPipelinePanel({ steps, live = false, defaultExpanded = true
       </ol>
     </details>
   )
-}
-
-/** Keep latest step per phase+agent; running overrides done for same slot. */
-function dedupeSteps(steps: PipelineStep[]): PipelineStep[] {
-  const map = new Map<string, PipelineStep>()
-  for (const step of steps) {
-    const key = `${step.phase}:${step.agent ?? step.title}`
-    const prev = map.get(key)
-    if (!prev || step.status === 'running' || prev.status === 'skipped') {
-      map.set(key, step)
-    }
-  }
-  return Array.from(map.values())
 }

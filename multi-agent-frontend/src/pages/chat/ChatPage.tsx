@@ -7,6 +7,7 @@ import { ChatMessageBody } from '../../components/chat/ChatMessageBody'
 import { MaterialIcon } from '../../components/ui/MaterialIcon'
 import { formatAgentName, truncate } from '../../lib/format'
 import { parseCitationsFromResponse } from '../../lib/citations'
+import { dedupeSteps } from '../../lib/pipeline'
 import { upsertChatSession } from '../../lib/storage'
 
 type ChatMessage =
@@ -31,6 +32,7 @@ function agentIcon(agent?: string): string {
   return 'support_agent'
 }
 
+const MAX_MESSAGE_LENGTH = 8000
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 
@@ -93,6 +95,7 @@ export function ChatPage() {
     attachment: { filename: string; mime_type: string; data: string }
   } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollToBottomOnUpdate = useRef(false)
@@ -157,13 +160,14 @@ export function ChatPage() {
       bottomRef.current?.scrollIntoView({ behavior: 'auto' })
       historyLoadedForSession.current = null
     }
-  }, [messages, loading, loadingHistory, routeSessionId])
+  }, [messages, livePipeline, loading, loadingHistory, routeSessionId])
 
   const handleSend = useCallback(async () => {
     const text = message.trim()
-    if ((!text && !pendingImage) || loading) return
+    if ((!text && !pendingImage) || loading || loadingHistory) return
 
     const attachment = pendingImage?.attachment
+    const sentImage = pendingImage
     const displayText = text || (attachment ? 'Read information from the attached image' : '')
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -183,7 +187,11 @@ export function ChatPage() {
 
     const appendStep = (step: PipelineStep) => {
       setLivePipeline((prev) => [...prev, step])
-      scrollToBottomOnUpdate.current = true
+      // Follow the stream only while the user is at the bottom; don't yank them back after scrolling up.
+      const el = scrollRef.current
+      if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+        scrollToBottomOnUpdate.current = true
+      }
     }
 
     try {
@@ -235,10 +243,19 @@ export function ChatPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send message')
       setLivePipeline([])
+      // Give the input back so a failed send costs a retry, not a retype. The bubble
+      // goes too, otherwise resending would show the same message twice.
+      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id))
+      // maxLength only guards typing; the backend rejects anything over 8000 with a 422.
+      setMessage((current) => [message, current].filter((s) => s.trim()).join('\n').slice(0, MAX_MESSAGE_LENGTH))
+      setPendingImage((current) => current ?? sentImage)
     } finally {
       setLoading(false)
+      // A keyboard user's focus is lost when Send disables; don't steal it from a control they moved to.
+      const active = document.activeElement
+      if (!active || active === document.body) textareaRef.current?.focus()
     }
-  }, [activeSessionId, loading, message, navigate, pendingImage, routeSessionId])
+  }, [activeSessionId, loading, loadingHistory, message, navigate, pendingImage, routeSessionId])
 
   const handlePickImage = () => {
     if (!loading && !loadingHistory) fileRef.current?.click()
@@ -279,6 +296,7 @@ export function ChatPage() {
   }
 
   const hasMessages = messages.length > 0
+  const liveStep = dedupeSteps(livePipeline).find((s) => s.status === 'running')
 
   return (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -330,9 +348,9 @@ export function ChatPage() {
                     </div>
                     <span className="font-label-md font-semibold text-on-surface">Agent Workspace</span>
                     {msg.agent && (
-                      <div className="ml-2 flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5">
-                        <MaterialIcon name={agentIcon(msg.agent)} size={14} className="text-blue-800" />
-                        <span className="text-label-sm font-medium text-blue-900">{formatAgentName(msg.agent)}</span>
+                      <div className="ml-2 flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface-container-low px-2 py-0.5">
+                        <MaterialIcon name={agentIcon(msg.agent)} size={14} className="text-secondary" />
+                        <span className="text-label-sm font-medium text-on-secondary-fixed">{formatAgentName(msg.agent)}</span>
                       </div>
                     )}
                     {msg.topologyMode ? (
@@ -360,20 +378,22 @@ export function ChatPage() {
                         className="flex items-center gap-1.5 rounded border border-border-subtle px-2 py-1 text-label-sm text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
                       >
                         <MaterialIcon name="menu_book" size={16} />
-                        {msg.citations.length} Citations
+                        {msg.citations.length} {msg.citations.length === 1 ? 'citation' : 'citations'}
                         <MaterialIcon name={expandedCitations === msg.id ? 'expand_less' : 'expand_more'} size={16} />
                       </button>
                     ) : (
                       <span />
                     )}
-                    <div className="flex items-center gap-1">
+                    <div role="group" aria-label="Rate this response" className="flex items-center gap-1">
                       {Array.from({ length: 5 }, (_, i) => (
                         <button
                           key={i}
                           type="button"
+                          aria-label={`Rate ${i + 1} of 5`}
+                          aria-pressed={msg.rating === i + 1}
                           onClick={() => void handleRate(msg.traceId, i + 1)}
-                          className={`p-1 transition-colors hover:text-status-warning ${
-                            msg.rating && i < msg.rating ? 'text-status-warning' : 'text-outline-variant'
+                          className={`p-1 transition-colors hover:text-rating ${
+                            msg.rating && i < msg.rating ? 'text-rating' : 'text-outline'
                           }`}
                         >
                           <MaterialIcon name="star" size={20} filled={!!msg.rating && i < msg.rating} />
@@ -389,8 +409,8 @@ export function ChatPage() {
                           <span
                             className={`mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
                               c.ref_id.startsWith('W')
-                                ? 'bg-orange-100 text-citation-web'
-                                : 'bg-blue-100 text-citation-knowledge'
+                                ? 'bg-citation-web-tint text-citation-web-text'
+                                : 'bg-citation-knowledge-tint text-citation-knowledge-text'
                             }`}
                           >
                             {c.ref_id}
@@ -416,9 +436,15 @@ export function ChatPage() {
               ),
             )}
 
+          {/* Always mounted so the text change is announced (a region inserted with its content is often
+              missed); sr-only is absolutely positioned, so while empty it takes no space in the flex gap. */}
+          <div role="status" className="sr-only">
+            {loading ? `Agent Workspace is processing…${liveStep ? ` — ${liveStep.title}` : ''}` : ''}
+          </div>
+
           {loading && (
             <div className="flex w-full flex-col gap-3 pl-10">
-              <div className="flex items-center gap-2 text-body-md text-on-surface-variant">
+              <div aria-hidden="true" className="flex items-center gap-2 text-body-md text-on-surface-variant">
                 <MaterialIcon name="progress_activity" size={20} className="animate-spin text-primary" />
                 Agent Workspace is processing…
               </div>
@@ -429,7 +455,7 @@ export function ChatPage() {
           )}
 
           {error && (
-            <div className="rounded-lg border border-error/30 bg-error-container/30 px-4 py-3 text-body-md text-on-error-container">
+            <div role="alert" className="rounded-lg border border-error/30 bg-error-container/30 px-4 py-3 text-body-md text-on-error-container">
               {error}
             </div>
           )}
@@ -462,19 +488,21 @@ export function ChatPage() {
                 }}
                 className="rounded-md p-1 text-on-surface-variant hover:bg-surface-container-low"
                 title="Remove image"
+                aria-label="Remove image"
               >
                 <MaterialIcon name="close" size={18} />
               </button>
             </div>
           ) : null}
           <textarea
+            ref={textareaRef}
             rows={1}
+            maxLength={MAX_MESSAGE_LENGTH}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message to discuss..."
-            disabled={loading || loadingHistory}
-            className="min-h-[60px] max-h-[200px] w-full resize-none border-none bg-transparent px-4 py-4 text-body-md text-on-surface focus:ring-0 focus:outline-none disabled:opacity-60"
+            className="min-h-[60px] max-h-[200px] w-full resize-none border-none bg-transparent px-4 py-4 text-body-lg text-on-surface focus:ring-0 focus:outline-none"
           />
           <div className="flex items-center justify-between px-3 pb-3">
             <button
@@ -483,11 +511,16 @@ export function ChatPage() {
               disabled={loading || loadingHistory}
               className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50"
               title="Attach image (OCR)"
+              aria-label="Attach image"
             >
               <MaterialIcon name="attach_file" size={20} />
             </button>
             <div className="flex items-center gap-3">
-              <span className="text-label-sm text-outline">{message.length}/8000</span>
+              {message.length > MAX_MESSAGE_LENGTH - 1000 ? (
+                <span className="text-label-sm text-on-surface-variant">
+                  {message.length}/{MAX_MESSAGE_LENGTH}
+                </span>
+              ) : null}
               <button
                 type="button"
                 disabled={!canSend}

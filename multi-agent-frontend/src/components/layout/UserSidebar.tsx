@@ -57,11 +57,6 @@ export function UserSidebar({ className = '', onNavigate }: UserSidebarProps) {
     <aside
       className={`flex w-sidebar-width flex-col gap-2 border-r border-border-subtle bg-surface-sidebar p-4 ${className}`}
     >
-      <div className="mb-4">
-        <h2 className="text-headline-sm font-bold text-primary">Admin Console</h2>
-        <p className="text-body-md text-on-surface-variant">System Management</p>
-      </div>
-
       <NavLink
         to="/chat"
         onClick={onNavigate}
@@ -85,7 +80,7 @@ export function UserSidebar({ className = '', onNavigate }: UserSidebarProps) {
                   to={`/chat/${s.id}`}
                   onClick={onNavigate}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-3 py-2 text-label-md transition-all ${
+                    `flex items-center gap-3 rounded-lg px-3 py-2 text-label-md transition-colors focus-visible:outline-offset-[-2px] ${
                       isActive
                         ? 'bg-secondary-container font-semibold text-on-secondary-container'
                         : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
@@ -104,17 +99,11 @@ export function UserSidebar({ className = '', onNavigate }: UserSidebarProps) {
       <div className="mt-auto flex flex-col gap-1 border-t border-border-subtle pt-4">
         <NavLink
           to="/admin/support"
+          onClick={onNavigate}
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-label-md text-on-surface-variant hover:bg-surface-container-high"
         >
           <MaterialIcon name="help" size={20} />
           Support
-        </NavLink>
-        <NavLink
-          to="/admin/logs"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-label-md text-on-surface-variant hover:bg-surface-container-high"
-        >
-          <MaterialIcon name="history" size={20} />
-          Logs
         </NavLink>
       </div>
     </aside>
