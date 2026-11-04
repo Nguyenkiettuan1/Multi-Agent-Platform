@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from config import get_settings
 from config.version import SERVICE_VERSION
@@ -15,6 +16,7 @@ from core.checkpointer import create_checkpointer
 from core.mcp.attachments import materialize_attachments
 from core.planning.media_tasks import image_only_default_message
 from core.observability.logging import setup_logging
+from core.search.ingestion import MAX_PARENT_DOC_ID_LEN
 from core.security.auth import verify_api_key
 from workflows.graph import build_graph
 from workflows.runner import run_agent_workflow, set_graph, stream_agent_workflow
@@ -81,12 +83,34 @@ class FeedbackRequest(BaseModel):
     comment: str = ""
 
 
+_DOC_ID_RE = re.compile(r"[A-Za-z0-9_.-]+")
+_MAX_DOC_ID_READ = 200
+# app.knowledge_documents.doc_id is VARCHAR(100): a writer cannot store anything longer, so
+# POST /admin/knowledge is capped at the column width (read routes still accept up to 200).
+_MAX_DOC_ID_COLUMN = 100
+
+
+def check_doc_id(value: str, max_length: int = _MAX_DOC_ID_READ) -> str:
+    """Single source of truth for knowledge doc_ids (routes, JSON body and upload form).
+
+    Dot-only ids are refused because URL resolution turns `.`/`..` into other routes.
+    """
+    if not (1 <= len(value) <= max_length) or not _DOC_ID_RE.fullmatch(value) or not value.strip("."):
+        raise ValueError(f"doc_id must be 1-{max_length} characters of A-Z a-z 0-9 _ . - and not only dots")
+    return value
+
+
 class KnowledgeIngestRequest(BaseModel):
-    doc_id: str = Field(..., min_length=1, max_length=100)
+    doc_id: str = Field(..., min_length=1)
     title: str = Field(..., min_length=1, max_length=500)
     content: str = Field(..., min_length=1)
     domain: str = "general"
     source: str = "api"
+
+    @field_validator("doc_id")
+    @classmethod
+    def _check_doc_id(cls, value: str) -> str:
+        return check_doc_id(value, _MAX_DOC_ID_COLUMN)
 
 
 class ChunkPreviewRequest(BaseModel):
@@ -380,6 +404,12 @@ async def admin_upload_knowledge(
     from core.search.ingestion import ingest_file_bytes, preview_document
     from core.search.parsers import parse_file
 
+    if doc_id:  # empty/absent -> id generated from the title
+        try:
+            check_doc_id(doc_id, MAX_PARENT_DOC_ID_LEN)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"doc_id: {exc}") from None
+
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Empty file")
@@ -410,6 +440,97 @@ async def admin_upload_knowledge(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return {"status": "ok", **result}
+
+
+def _valid_doc_id(doc_id: str) -> str:
+    try:
+        return check_doc_id(doc_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@app.get("/api/v1/admin/knowledge/documents")
+def admin_list_knowledge_documents(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    domain: str | None = None,
+    _: str | None = Depends(verify_api_key),
+):
+    """One entry per document (chunks grouped); limit/offset count documents."""
+    from core.search.azure_search import azure_search_enabled
+    from core.search.pgvector_store import count_parent_documents, list_parent_documents
+
+    items = list_parent_documents(limit=limit, offset=offset, domain=domain)
+    for r in items:
+        for k in ("created_at", "updated_at"):
+            if r.get(k):
+                r[k] = r[k].isoformat()
+    return {
+        "items": items,
+        "total": count_parent_documents(domain=domain),
+        "azure_enabled": azure_search_enabled(),
+    }
+
+
+# The /documents routes are declared before the legacy `/{parent_doc_id}/chunks` route:
+# FastAPI matches in declaration order.
+@app.get("/api/v1/admin/knowledge/documents/{doc_id}")
+def admin_get_knowledge_document(
+    _: str | None = Depends(verify_api_key),  # before doc_id: auth must run before validation
+    doc_id: str = Depends(_valid_doc_id),
+):
+    from core.search.azure_search import azure_search_enabled
+    from core.search.pgvector_store import get_document_with_chunks
+
+    doc = get_document_with_chunks(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Knowledge document not found")
+    for k in ("created_at", "updated_at"):
+        if doc.get(k):
+            doc[k] = doc[k].isoformat()
+    return {**doc, "azure_enabled": azure_search_enabled()}
+
+
+@app.delete("/api/v1/admin/knowledge/documents/{doc_id}")
+def admin_delete_knowledge_document(
+    _: str | None = Depends(verify_api_key),  # before doc_id: auth must run before validation
+    doc_id: str = Depends(_valid_doc_id),
+):
+    """Hard delete (Azure first, then Postgres). Azure failure -> 502 and Postgres is kept."""
+    from core.search.ingestion import AzureSyncError, KnowledgeDocumentNotFound, delete_document
+
+    try:
+        result = delete_document(doc_id)
+    except KnowledgeDocumentNotFound:
+        raise HTTPException(status_code=404, detail="Knowledge document not found") from None
+    except AzureSyncError as exc:
+        _audit_knowledge_delete(doc_id, deleted_rows=0, error=type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Azure Search delete failed; document kept") from None
+    _audit_knowledge_delete(doc_id, deleted_rows=result["deleted_rows"], azure=result["azure"])
+    return result
+
+
+def _audit_knowledge_delete(doc_id: str, *, deleted_rows: int, azure: dict | None = None, error: str | None = None) -> None:
+    """Record the attempt in platform.audit_log. Ids and counts only, never document content.
+
+    write_audit never raises: it logs DB failures and silently does nothing when
+    PLATFORM_DATABASE_URL is unset, so a delete is unaudited in that setup.
+    """
+    import uuid
+
+    from core.observability.audit import write_audit
+
+    payload: dict = {"doc_id": doc_id, "deleted_rows": deleted_rows}
+    if azure is not None:
+        payload["azure"] = azure
+    if error is not None:
+        payload["error"] = error
+    write_audit(
+        trace_id=f"knowledge-delete-{uuid.uuid4().hex}",
+        action="knowledge_delete",
+        agent_name="admin_api",
+        payload=payload,
+    )
 
 
 @app.get("/api/v1/admin/knowledge/{parent_doc_id}/chunks")

@@ -3,6 +3,7 @@ import { AdminLayout } from '../components/layout/AdminLayout'
 import { UserLayout } from '../components/layout/UserLayout'
 import { DashboardPage } from '../pages/admin/DashboardPage'
 import { KnowledgePage } from '../pages/admin/KnowledgePage'
+import { KnowledgeDocumentPage } from '../pages/admin/KnowledgeDocumentPage'
 import { FeedbackPage } from '../pages/admin/FeedbackPage'
 import { AuditPage } from '../pages/admin/AuditPage'
 import { ModelsPage } from '../pages/admin/ModelsPage'
@@ -25,6 +26,7 @@ export function AppRoutes() {
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="knowledge" element={<KnowledgePage />} />
+        <Route path="knowledge/:docId" element={<KnowledgeDocumentPage />} />
         <Route path="feedback" element={<FeedbackPage />} />
         <Route path="audit" element={<AuditPage />} />
         <Route path="models" element={<ModelsPage />} />
