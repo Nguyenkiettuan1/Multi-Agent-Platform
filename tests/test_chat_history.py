@@ -10,12 +10,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from core.database.engines import get_platform_engine
 from core.intelligence.feedback_store import list_session_traces, load_session_history
-from gateway.main import app
 
 BASE_TIME = datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc)
 
@@ -121,8 +119,9 @@ def test_unknown_session_is_empty(session_id):
 
 
 @pytest.fixture
-def client():
-    return TestClient(app)
+def client(user_client):
+    """Chat routes need a signed-in user since MA-AU-T7."""
+    return user_client
 
 
 URL = "/api/v1/chat/history"
@@ -212,3 +211,7 @@ def test_null_created_at_is_not_lost_or_floated_to_top(session_id):
 
     assert _walk_pages(session_id, 1) == [[3], [2], [1]]
     assert _labels(list_session_traces(session_id, limit=10)["turns"]) == [1, 2, 3]
+
+
+def test_api_history_requires_authentication(anon_client, session_id):
+    assert anon_client.get(URL, params={"session_id": session_id}).status_code == 401

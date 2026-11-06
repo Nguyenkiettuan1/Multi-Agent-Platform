@@ -17,7 +17,9 @@ from core.mcp.attachments import materialize_attachments
 from core.planning.media_tasks import image_only_default_message
 from core.observability.logging import setup_logging
 from core.search.ingestion import MAX_PARENT_DOC_ID_LEN
-from core.security.auth import verify_api_key
+from core.security.auth import Principal, require_admin, require_user, warm_up
+from core.security.throttle import purge_old_attempts
+from gateway.auth_routes import router as auth_router
 from workflows.graph import build_graph
 from workflows.runner import run_agent_workflow, set_graph, stream_agent_workflow
 
@@ -27,7 +29,17 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    # Fail before accepting a single request: without these every login would
+    # 500 (no secret to sign cookies) or sessions could not be stored.
+    if not settings.auth_secret_key:
+        raise RuntimeError("AUTH_SECRET_KEY is not set; refusing to start (see .env.example)")
+    if not settings.platform_database_url:
+        raise RuntimeError("PLATFORM_DATABASE_URL is not set; refusing to start (sessions live in the platform DB)")
     setup_logging(settings.log_level)
+    if not settings.auth_cookie_secure and settings.app_env != "local":
+        logger.warning("AUTH_COOKIE_SECURE is off with APP_ENV=%s: session cookies can travel over plain HTTP", settings.app_env)
+    warm_up()  # build the argon2 dummy hash now so the first unknown-email login is not a timing tell
+    purge_old_attempts()
     checkpointer = await create_checkpointer()
     set_graph(build_graph(checkpointer))
     logger.info("Gateway ready — checkpointer=%s", type(checkpointer).__name__)
@@ -40,6 +52,7 @@ app = FastAPI(
     version=SERVICE_VERSION,
     lifespan=lifespan,
 )
+app.include_router(auth_router)
 
 
 class ChatAttachment(BaseModel):
@@ -141,7 +154,7 @@ async def health():
 
 
 @app.get("/api/v1/models")
-async def list_models(_: str | None = Depends(verify_api_key)):
+async def list_models(_: Principal = Depends(require_admin)):
     from core.llm.router import get_router
     from core.registry.agents import load_registry
     from core.registry.pipeline import load_pipeline_registry
@@ -171,7 +184,7 @@ async def list_models(_: str | None = Depends(verify_api_key)):
 
 
 @app.get("/api/v1/mcp/catalog")
-async def mcp_catalog(_: str | None = Depends(verify_api_key)):
+async def mcp_catalog(_: Principal = Depends(require_admin)):
     """List MCP servers + tools for app runtime (chat agents)."""
     from core.mcp.hub import format_tools_for_llm, get_tool_hub
 
@@ -194,7 +207,7 @@ async def mcp_catalog(_: str | None = Depends(verify_api_key)):
 
 
 @app.post("/api/v1/feedback")
-async def submit_feedback(request: FeedbackRequest, _: str | None = Depends(verify_api_key)):
+async def submit_feedback(request: FeedbackRequest, _: Principal = Depends(require_user)):
     from core.intelligence.feedback_store import apply_user_rating
 
     ok = apply_user_rating(
@@ -208,14 +221,14 @@ async def submit_feedback(request: FeedbackRequest, _: str | None = Depends(veri
 
 
 @app.get("/api/v1/admin/overview")
-async def admin_overview(_: str | None = Depends(verify_api_key)):
+async def admin_overview(_: Principal = Depends(require_admin)):
     from core.admin.overview import build_admin_overview
 
     return build_admin_overview()
 
 
 @app.post("/api/v1/admin/feedback/{trace_id}/promote")
-async def admin_promote_feedback(trace_id: str, _: str | None = Depends(verify_api_key)):
+async def admin_promote_feedback(trace_id: str, _: Principal = Depends(require_admin)):
     from core.intelligence.knowledge_promotion import load_feedback_for_promotion, promote_feedback_to_knowledge
 
     record = load_feedback_for_promotion(trace_id)
@@ -230,7 +243,7 @@ async def admin_promote_feedback(trace_id: str, _: str | None = Depends(verify_a
 
 
 @app.get("/api/v1/admin/stats")
-async def admin_stats(_: str | None = Depends(verify_api_key)):
+async def admin_stats(_: Principal = Depends(require_admin)):
     from core.admin.overview import build_admin_overview
 
     overview = build_admin_overview()
@@ -241,7 +254,7 @@ async def admin_stats(_: str | None = Depends(verify_api_key)):
 async def admin_audit(
     limit: int = 50,
     trace_id: str | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.observability.audit import list_audit
 
@@ -256,7 +269,7 @@ async def admin_audit(
 async def admin_feedback(
     limit: int = 50,
     min_rating: int | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.intelligence.feedback_store import list_feedback_records
 
@@ -270,7 +283,7 @@ async def admin_feedback_export(
     min_eval_score: float = 0.0,
     format: str = "jsonl",
     limit: int = 1000,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from fastapi.responses import PlainTextResponse
 
@@ -296,7 +309,7 @@ async def admin_feedback_export(
 async def admin_list_knowledge(
     limit: int = 50,
     domain: str | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.search.pgvector_store import list_documents
 
@@ -311,7 +324,7 @@ async def admin_list_knowledge(
 @app.post("/api/v1/admin/knowledge")
 async def admin_ingest_knowledge(
     request: KnowledgeIngestRequest,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.search.embeddings import embed_text
     from core.search.pgvector_store import upsert_document
@@ -335,7 +348,7 @@ async def admin_ingest_knowledge(
 @app.post("/api/v1/admin/knowledge/chunk-preview")
 async def admin_chunk_preview(
     request: ChunkPreviewRequest,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     """Preview chunks + quality score — does NOT write to DB."""
     from core.search.ingestion import preview_document
@@ -351,7 +364,7 @@ async def admin_chunk_preview(
 @app.post("/api/v1/admin/knowledge/chunk-eval")
 async def admin_chunk_eval(
     request: ChunkEvalRequest,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     """Dry-run: embed query and score each chunk — check if chunking is reasonable."""
     from core.search.chunking import chunk_text
@@ -398,7 +411,7 @@ async def admin_upload_knowledge(
     chunk_size: int | None = Form(None),
     chunk_overlap: int | None = Form(None),
     preview_only: bool = Form(False),
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     """Upload PDF/DOCX/TXT → chunk → embed → store. preview_only=true returns chunks only."""
     from core.search.ingestion import ingest_file_bytes, preview_document
@@ -454,7 +467,7 @@ def admin_list_knowledge_documents(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     domain: str | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     """One entry per document (chunks grouped); limit/offset count documents."""
     from core.search.azure_search import azure_search_enabled
@@ -476,7 +489,7 @@ def admin_list_knowledge_documents(
 # FastAPI matches in declaration order.
 @app.get("/api/v1/admin/knowledge/documents/{doc_id}")
 def admin_get_knowledge_document(
-    _: str | None = Depends(verify_api_key),  # before doc_id: auth must run before validation
+    _: Principal = Depends(require_admin),  # before doc_id: auth must run before validation
     doc_id: str = Depends(_valid_doc_id),
 ):
     from core.search.azure_search import azure_search_enabled
@@ -493,7 +506,7 @@ def admin_get_knowledge_document(
 
 @app.delete("/api/v1/admin/knowledge/documents/{doc_id}")
 def admin_delete_knowledge_document(
-    _: str | None = Depends(verify_api_key),  # before doc_id: auth must run before validation
+    _: Principal = Depends(require_admin),  # before doc_id: auth must run before validation
     doc_id: str = Depends(_valid_doc_id),
 ):
     """Hard delete (Azure first, then Postgres). Azure failure -> 502 and Postgres is kept."""
@@ -536,7 +549,7 @@ def _audit_knowledge_delete(doc_id: str, *, deleted_rows: int, azure: dict | Non
 @app.get("/api/v1/admin/knowledge/{parent_doc_id}/chunks")
 async def admin_list_document_chunks(
     parent_doc_id: str,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.search.ingestion import get_parent_chunks
 
@@ -547,7 +560,7 @@ async def admin_list_document_chunks(
 @app.get("/api/v1/chat/sessions")
 async def chat_sessions(
     limit: int = 30,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_user),
 ):
     from core.intelligence.feedback_store import list_recent_sessions
 
@@ -560,7 +573,7 @@ async def chat_history(
     session_id: str,
     limit: int = Query(50, ge=1),
     before: str | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_user),
 ):
     from core.intelligence.feedback_store import list_session_traces
 
@@ -593,7 +606,7 @@ def _chat_message_for_workflow(message: str, attachments: list) -> str:
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, _: str | None = Depends(verify_api_key)):
+async def chat(request: ChatRequest, _: Principal = Depends(require_user)):
     try:
         attachments = materialize_attachments([a.model_dump() for a in request.attachments])
         return ChatResponse(**await run_agent_workflow(
@@ -608,7 +621,7 @@ async def chat(request: ChatRequest, _: str | None = Depends(verify_api_key)):
 
 
 @app.post("/api/v1/chat/stream")
-async def chat_stream(request: ChatRequest, _: str | None = Depends(verify_api_key)):
+async def chat_stream(request: ChatRequest, _: Principal = Depends(require_user)):
     try:
         attachments = materialize_attachments([a.model_dump() for a in request.attachments])
         return StreamingResponse(

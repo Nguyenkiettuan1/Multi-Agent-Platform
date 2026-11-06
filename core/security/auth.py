@@ -58,7 +58,9 @@ def warm_up() -> None:
 
 
 def client_ip(request: Request) -> str | None:
-    """Peer address; behind a proxy this is the proxy unless uvicorn runs with --proxy-headers."""
+    """Peer address. uvicorn (proxy_headers defaults to on) rewrites it from X-Forwarded-For
+    only for peers listed in FORWARDED_ALLOW_IPS (default 127.0.0.1); otherwise behind a
+    proxy this is the proxy's address."""
     return request.client.host if request.client else None
 
 
@@ -125,14 +127,3 @@ def require_admin(principal: Principal = Depends(require_user)) -> Principal:
         raise HTTPException(status_code=403, detail="Admin role required")
     return principal
 
-
-async def verify_api_key(api_key: str | None = Security(_api_key_header)) -> str | None:
-    """Legacy X-API-Key gate, kept until gateway routes move to require_user (MA-AU-T7)."""
-    required = get_settings().api_key or ""
-
-    if not required:
-        return None  # legacy behaviour: no key configured = open
-
-    if not api_key or not _keys_equal(api_key, required):
-        raise HTTPException(status_code=401, detail="Invalid or missing API key")
-    return api_key
