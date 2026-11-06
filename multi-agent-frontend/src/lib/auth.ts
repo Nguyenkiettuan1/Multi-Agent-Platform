@@ -36,6 +36,8 @@ export function safeNextPath(next: string | null | undefined): string {
     return DEFAULT_NEXT_PATH
   }
   if (url.origin !== PARSE_BASE) return DEFAULT_NEXT_PATH
+  // "/.//evil.com" resolves to "//evil.com": a protocol-relative URL if anything later uses it as an href.
+  if (url.pathname.startsWith('//')) return DEFAULT_NEXT_PATH
 
   // The router matches case-insensitively and on the decoded path, so "/LOGIN" and "/%6Cogin" are /login too.
   let decoded: string
@@ -62,15 +64,17 @@ function plural(n: number, unit: string): string {
   return `${n} ${unit}${n === 1 ? '' : 's'}`
 }
 
+function tooManyAttemptsMessage(retryAfterSeconds?: number | null): string {
+  if (!retryAfterSeconds || retryAfterSeconds <= 0) return 'Too many attempts. Try again later.'
+  const wait =
+    retryAfterSeconds < 60 ? plural(retryAfterSeconds, 'second') : plural(Math.ceil(retryAfterSeconds / 60), 'minute')
+  return `Too many attempts. Try again in ${wait}.`
+}
+
 export function loginErrorMessage(status: number | undefined, retryAfterSeconds?: number | null): string {
   if (status === undefined) return 'Could not reach the server. Check your connection and try again.'
   if (status === 401) return 'Incorrect email or password.'
-  if (status === 429) {
-    if (!retryAfterSeconds || retryAfterSeconds <= 0) return 'Too many attempts. Try again later.'
-    const wait =
-      retryAfterSeconds < 60 ? plural(retryAfterSeconds, 'second') : plural(Math.ceil(retryAfterSeconds / 60), 'minute')
-    return `Too many attempts. Try again in ${wait}.`
-  }
+  if (status === 429) return tooManyAttemptsMessage(retryAfterSeconds)
   // 403 here means the server rejected the request itself (e.g. missing CSRF header), not the credentials.
   if (status === 403) return 'Sign-in was blocked by the server. Reload the page and try again.'
   return 'Sign-in failed. Try again in a moment.'
@@ -106,9 +110,14 @@ export function passwordProblem(current: string, rawNext: string, rawConfirm: st
   return null
 }
 
-export function changePasswordErrorMessage(status: number | undefined, detail: string): string {
+export function changePasswordErrorMessage(
+  status: number | undefined,
+  detail: string,
+  retryAfterSeconds?: number | null,
+): string {
   if (status === undefined) return 'Could not reach the server. Check your connection and try again.'
   if (status === 400) return 'Current password is incorrect.'
+  if (status === 429) return tooManyAttemptsMessage(retryAfterSeconds)
   if (status === 422) {
     // ApiError stringifies non-string `detail` as JSON; do not show that to people.
     return detail && !/^[[{]/.test(detail) ? detail : 'New password does not meet the password policy.'

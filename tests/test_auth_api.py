@@ -262,6 +262,39 @@ def test_change_password_wrong_current_is_400_not_401(user_client):
     assert user_client.get(ME).status_code == 200
 
 
+def _wrong_password(client):
+    return client.post(PASSWORD_URL, json={"current_password": "wrong password!!", "new_password": NEW_PASSWORD})
+
+
+def test_change_password_sixth_wrong_guess_is_429_and_blocks_the_right_password(user_client, monkeypatch):
+    assert [_wrong_password(user_client).status_code for _ in range(5)] == [400] * 5
+
+    calls = []
+    monkeypatch.setattr(auth_routes, "verify_password", lambda *a: calls.append("verify") or True)
+    r = user_client.post(PASSWORD_URL, json={"current_password": AUTH_TEST_PASSWORD, "new_password": NEW_PASSWORD})
+    assert r.status_code == 429
+    assert int(r.headers["retry-after"]) > 0
+    assert calls == []  # refused before any hashing
+    assert verify_password(users.get_user(user_client.auth_user.id).password_hash, AUTH_TEST_PASSWORD)
+
+
+def test_change_password_success_resets_the_failure_count(user_client):
+    for _ in range(4):
+        assert _wrong_password(user_client).status_code == 400
+    ok = user_client.post(PASSWORD_URL, json={"current_password": AUTH_TEST_PASSWORD, "new_password": NEW_PASSWORD})
+    assert ok.status_code == 204
+    for _ in range(4):
+        r = user_client.post(PASSWORD_URL, json={"current_password": "wrong password!!", "new_password": "x" * 14})
+        assert r.status_code == 400
+
+
+def test_change_password_failures_are_audited_without_secrets(user_client):
+    _wrong_password(user_client)
+    rows = _audit_rows(user_client.auth_user, "auth_password_change_failed")
+    assert len(rows) == 1 and rows[0].user_id == user_client.auth_user.id
+    assert "wrong password!!" not in rows[0].payload and NEW_PASSWORD not in rows[0].payload
+
+
 @pytest.mark.parametrize(
     "new_password",
     ["short", "x" * 129, AUTH_TEST_PASSWORD, "p" * 1025],

@@ -28,6 +28,12 @@ test('safeNextPath rejects absolute URLs and anything not starting with a slash'
   assert.equal(safeNextPath('chat'), '/chat')
 })
 
+test('safeNextPath rejects paths that dot-segments resolve to a protocol-relative URL', () => {
+  assert.equal(safeNextPath('/.//evil.com'), '/chat')
+  assert.equal(safeNextPath('/..//evil.com'), '/chat')
+  assert.equal(safeNextPath('/chat/..//evil.com'), '/chat')
+})
+
 test('safeNextPath rejects control characters browsers strip before parsing', () => {
   assert.equal(safeNextPath('/\t/evil.com'), '/chat')
   assert.equal(safeNextPath('/\n/evil.com'), '/chat')
@@ -146,6 +152,12 @@ test('changePasswordErrorMessage maps 401 and 422 and does not leak raw JSON', (
   assert.match(changePasswordErrorMessage(422, '[{"loc":["body"]}]'), /does not meet/)
   assert.match(changePasswordErrorMessage(undefined, ''), /reach the server/)
   assert.equal(changePasswordErrorMessage(500, 'boom'), 'boom')
+})
+
+test('changePasswordErrorMessage on 429 names the wait like the login one', () => {
+  assert.equal(changePasswordErrorMessage(429, 'Too many attempts, try again later', 30), 'Too many attempts. Try again in 30 seconds.')
+  assert.equal(changePasswordErrorMessage(429, 'x', 61), 'Too many attempts. Try again in 2 minutes.')
+  assert.equal(changePasswordErrorMessage(429, 'Too many attempts, try again later', null), 'Too many attempts. Try again later.')
 })
 
 test('parseResponseBody returns undefined for 204/205 even when labelled JSON', () => {

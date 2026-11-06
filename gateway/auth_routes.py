@@ -249,11 +249,26 @@ def me(principal: Principal = Depends(require_authenticated)):
 def change_password(body: ChangePasswordRequest, request: Request, principal: Principal = Depends(require_authenticated)):
     if principal.via != "session":
         raise HTTPException(status_code=403, detail="Changing a password requires a user session")
+    # Same throttle as login, so a stolen session cannot be used to guess the current
+    # password. The key "pw:<uuid>" (39 chars, fits email_norm VARCHAR(320)) can never
+    # equal a real email_norm: those always contain "@", this one never does. The "ip"
+    # is the same per-user key, not the client IP: the per-IP bucket is shared with
+    # /auth/login, so using the real IP would let failed changes count against, and
+    # eventually lock out, every login behind the same NAT. The per-user limit
+    # (5 / 15 min) is the real protection here; this caller is already authenticated.
+    throttle_key = f"pw:{principal.user_id}"
+    wait, attempt_id = begin_login_attempt(throttle_key, throttle_key)
+    if wait is not None:
+        raise HTTPException(
+            status_code=429, detail="Too many attempts, try again later", headers={"Retry-After": str(wait)}
+        )
     user = users.get_user(principal.user_id)
     if user is None or not user.password_hash or not verify_password(user.password_hash, body.current_password):
+        _audit("auth_password_change_failed", principal.user_id)
         # 400, not 401: 401 is reserved for "not authenticated" so an expired
         # session is never shown to the user as a wrong password.
         raise HTTPException(status_code=400, detail="Current password is incorrect")
+    mark_succeeded(attempt_id)
     if unicodedata.normalize("NFC", body.new_password) == unicodedata.normalize("NFC", body.current_password):
         raise HTTPException(status_code=422, detail="New password must differ from the current password")
     try:

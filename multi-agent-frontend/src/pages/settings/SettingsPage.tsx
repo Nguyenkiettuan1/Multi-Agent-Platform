@@ -71,7 +71,7 @@ export function SettingsPage() {
     } catch (err) {
       setPasswordError(
         err instanceof ApiError
-          ? changePasswordErrorMessage(err.status, err.message)
+          ? changePasswordErrorMessage(err.status, err.message, err.retryAfter)
           : changePasswordErrorMessage(undefined, ''),
       )
       setPasswordBusy(false)
