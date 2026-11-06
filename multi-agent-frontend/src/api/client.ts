@@ -1,10 +1,15 @@
-import { getApiKey } from '../lib/storage'
+import { sessionIdFromErrorPayload } from '../lib/chatHistory'
+import { AUTH_UNAUTHORIZED_EVENT, parseResponseBody, parseRetryAfter } from '../lib/auth'
 import type {
   AdminOverview,
+  AdminUser,
+  AdminUsersResponse,
+  AuthMe,
   ChatHistoryResponse,
   ChatRequest,
   ChatResponse,
   ChatSessionsResponse,
+  CreateUserRequest,
   FeedbackRequest,
   HealthResponse,
   KnowledgeDeleteResult,
@@ -14,37 +19,71 @@ import type {
   ListResponse,
   ModelsResponse,
   PipelineStep,
+  User,
   AuditRecord,
   FeedbackRecord,
 } from './types'
 
 class ApiError extends Error {
   status: number
+  /** Seconds from the Retry-After header (429), when the server sent one. */
+  retryAfter: number | null
+  /** Set when a chat call failed after the server had already created the session (see sessionIdFromErrorPayload). */
+  sessionId: string | null
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfter: number | null = null, sessionId: string | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.retryAfter = retryAfter
+    this.sessionId = sessionId
   }
 }
 
-async function parseError(res: Response): Promise<string> {
+// Cookie auth needs this header on every call: the server demands it on unsafe methods (CSRF, D7), and a
+// custom header cannot be sent cross-site without a CORS preflight. Sent on GETs too so no call is forgotten.
+const CSRF_HEADERS = { 'X-Requested-With': 'XMLHttpRequest' }
+
+type FailureOptions = {
+  /** The login call: 401 there means "wrong credentials", not "session expired". */
+  credentials401?: boolean
+}
+
+async function toApiError(res: Response, opts: FailureOptions = {}): Promise<ApiError> {
   const text = await res.text()
-  if (!text) return res.statusText || `HTTP ${res.status}`
+  const error = new ApiError(
+    parseError(res, text),
+    res.status,
+    parseRetryAfter(res.headers.get('Retry-After')),
+    sessionIdFromErrorPayload(parseJson(text)),
+  )
+  if (res.status === 401 && !opts.credentials401) {
+    window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT))
+  }
+  return error
+}
+
+function parseJson(text: string): unknown {
   try {
-    const json = JSON.parse(text) as { detail?: unknown }
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+function parseError(res: Response, text: string): string {
+  if (!text) return res.statusText || `HTTP ${res.status}`
+  const json = parseJson(text) as { detail?: unknown } | undefined
+  if (json && typeof json === 'object') {
     if (typeof json.detail === 'string') return json.detail
     if (json.detail) return JSON.stringify(json.detail)
-  } catch {
-    /* plain text */
   }
   return text
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, failure: FailureOptions = {}): Promise<T> {
   const headers = new Headers(options.headers)
-  const apiKey = getApiKey()
-  if (apiKey) headers.set('X-API-Key', apiKey)
+  for (const [name, value] of Object.entries(CSRF_HEADERS)) headers.set(name, value)
 
   const body = options.body
   if (body && !(body instanceof FormData) && !headers.has('Content-Type')) {
@@ -53,14 +92,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(path, { ...options, headers })
   if (!res.ok) {
-    throw new ApiError(await parseError(res), res.status)
+    throw await toApiError(res, failure)
   }
 
-  const contentType = res.headers.get('content-type') ?? ''
-  if (contentType.includes('application/json')) {
-    return res.json() as Promise<T>
-  }
-  return res.text() as Promise<T>
+  return parseResponseBody(res.status, res.headers.get('content-type') ?? '', await res.text()) as T
 }
 
 export const api = {
@@ -76,9 +111,7 @@ export const api = {
     body: ChatRequest,
     onStep?: (step: PipelineStep) => void,
   ): AsyncGenerator<ChatResponse, void, unknown> {
-    const headers = new Headers({ 'Content-Type': 'application/json' })
-    const apiKey = getApiKey()
-    if (apiKey) headers.set('X-API-Key', apiKey)
+    const headers = new Headers({ 'Content-Type': 'application/json', ...CSRF_HEADERS })
 
     const res = await fetch('/api/v1/chat/stream', {
       method: 'POST',
@@ -87,7 +120,7 @@ export const api = {
     })
 
     if (!res.ok) {
-      throw new ApiError(await parseError(res), res.status)
+      throw await toApiError(res)
     }
 
     const reader = res.body?.getReader()
@@ -122,7 +155,7 @@ export const api = {
         } else if (event === 'complete') {
           yield payload as ChatResponse
         } else if (event === 'error') {
-          throw new ApiError(String(payload.message ?? 'Stream error'), 500)
+          throw new ApiError(String(payload.message ?? 'Stream error'), 500, null, sessionIdFromErrorPayload(payload))
         }
       }
     }
@@ -134,8 +167,51 @@ export const api = {
     return request<ChatHistoryResponse>(`/api/v1/chat/history?${params}`)
   },
 
-  chatSessions: (limit = 30) =>
-    request<ChatSessionsResponse>(`/api/v1/chat/sessions?limit=${limit}`),
+  chatSessions: ({ limit = 30, before }: { limit?: number; before?: string } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (before) params.set('before', before)
+    return request<ChatSessionsResponse>(`/api/v1/chat/sessions?${params}`)
+  },
+
+  login: (email: string, password: string) =>
+    request<{ user: User }>(
+      '/api/v1/auth/login',
+      { method: 'POST', body: JSON.stringify({ email, password }) },
+      { credentials401: true },
+    ),
+
+  logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }),
+
+  me: () => request<AuthMe>('/api/v1/auth/me'),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>('/api/v1/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+
+  adminUsers: (params?: { limit?: number; offset?: number }) => {
+    const search = new URLSearchParams()
+    if (params?.limit) search.set('limit', String(params.limit))
+    if (params?.offset) search.set('offset', String(params.offset))
+    const qs = search.toString()
+    return request<AdminUsersResponse>(`/api/v1/admin/users${qs ? `?${qs}` : ''}`)
+  },
+
+  createUser: (body: CreateUserRequest) =>
+    request<User>('/api/v1/admin/users', { method: 'POST', body: JSON.stringify(body) }),
+
+  setUserActive: (userId: string, isActive: boolean) =>
+    request<AdminUser>(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active: isActive }),
+    }),
+
+  resetUserPassword: (userId: string, password: string) =>
+    request<void>(`/api/v1/admin/users/${encodeURIComponent(userId)}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
 
   submitFeedback: (body: FeedbackRequest) =>
     request<{ status: string; trace_id: string }>('/api/v1/feedback', {
@@ -185,11 +261,8 @@ export const api = {
     if (params?.min_rating != null) search.set('min_rating', String(params.min_rating))
     if (params?.format) search.set('format', params.format)
     const qs = search.toString()
-    const headers = new Headers()
-    const apiKey = getApiKey()
-    if (apiKey) headers.set('X-API-Key', apiKey)
-    const res = await fetch(`/api/v1/admin/feedback/export${qs ? `?${qs}` : ''}`, { headers })
-    if (!res.ok) throw new ApiError(await parseError(res), res.status)
+    const res = await fetch(`/api/v1/admin/feedback/export${qs ? `?${qs}` : ''}`, { headers: CSRF_HEADERS })
+    if (!res.ok) throw await toApiError(res)
     return res.blob()
   },
 

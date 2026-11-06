@@ -12,6 +12,9 @@ from workflows.state import AgentId, SubTask, WorkerResult
 
 logger = logging.getLogger(__name__)
 
+# What the user sees when the step breaks; the exception itself (SQL, schema names, paths) only goes to the log.
+GENERIC_WORKER_ERROR = "The legal research step failed. Please try again."
+
 
 async def run_legal_worker(task: SubTask, *, chat_history: list[dict] | None = None) -> WorkerResult:
     skill = load_skill_instructions("legal-research")
@@ -45,12 +48,12 @@ async def run_legal_worker(task: SubTask, *, chat_history: list[dict] | None = N
             citations=[c.to_dict() for c in result.citations],
             tools_called=tools_called,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("legal-worker failed")
         return WorkerResult(
             task_id=task.id,
             agent=AgentId.LEGAL_WORKER,
-            summary=f"Legal error: {exc}",
+            summary=GENERIC_WORKER_ERROR,
             success=False,
             tools_called=tools_called,
         )

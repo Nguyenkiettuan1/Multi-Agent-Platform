@@ -8,7 +8,6 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
-from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from core.database.engines import get_platform_engine
@@ -88,8 +87,9 @@ def azure(monkeypatch):
 
 
 @pytest.fixture
-def client():
-    return TestClient(app)
+def client(admin_client):
+    """Every knowledge route is admin-only since MA-AU-T7."""
+    return admin_client
 
 
 @pytest.fixture
@@ -324,21 +324,15 @@ def test_delete_partial_azure_rejection_returns_502_and_keeps_rows(client, azure
     assert client.get(f"{BASE}/documents/{did}").json()["chunk_count"] == 2
 
 
-@pytest.fixture
-def api_key(monkeypatch):
-    import core.security.auth as auth
-
-    monkeypatch.setattr(auth, "get_settings", lambda: SimpleNamespace(api_key="test-key"))
-    return {"X-API-Key": "test-key"}
-
-
 @pytest.mark.parametrize("method", ["GET", "DELETE"])
 @pytest.mark.parametrize("path", ["%2e%2e", "has%20space", "pytest-kba-valid"])
-def test_auth_runs_before_doc_id_validation(client, azure, api_key, method, path):
+def test_auth_runs_before_doc_id_validation(anon_client, user_client, api_key_client, azure, method, path):
+    """No credential -> 401 and a regular user -> 403, both before doc_id is validated."""
     url = f"{BASE}/documents/{path}"
-    assert client.request(method, url).status_code == 401
+    assert anon_client.request(method, url).status_code == 401
+    assert user_client.request(method, url).status_code == 403
     expected = 404 if path == "pytest-kba-valid" else 422
-    assert client.request(method, url, headers=api_key).status_code == expected
+    assert api_key_client.request(method, url).status_code == expected
 
 
 # ---- doc_id validation on the two writers (POST /admin/knowledge, POST /admin/knowledge/upload) ----

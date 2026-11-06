@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { api } from '../../api/client'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ApiError, api } from '../../api/client'
 import type { ChatResponse, Citation, PipelineStep } from '../../api/types'
 import { AgentPipelinePanel } from '../../components/chat/AgentPipelinePanel'
 import { ChatMessageBody } from '../../components/chat/ChatMessageBody'
 import { MaterialIcon } from '../../components/ui/MaterialIcon'
-import { formatAgentName, truncate } from '../../lib/format'
+import { formatAgentName } from '../../lib/format'
 import { parseCitationsFromResponse } from '../../lib/citations'
-import { canMoveFocus, createGeneration, dropKnownTurns, scrollTopAfterPrepend } from '../../lib/chatHistory'
+import {
+  canMoveFocus,
+  createGeneration,
+  dropKnownTurns,
+  scrollTopAfterPrepend,
+  SESSION_UPDATED_EVENT,
+  turnOutcome,
+} from '../../lib/chatHistory'
 import { dedupeSteps } from '../../lib/pipeline'
-import { upsertChatSession } from '../../lib/storage'
 
 type ChatMessage =
   | { id: string; role: 'user'; content: string; imagePreview?: string; imageName?: string }
@@ -24,6 +30,8 @@ type ChatMessage =
       citations: Citation[]
       rating?: number
     }
+  // A restored turn that has no answer (failed/incomplete); shown as a muted note under the user's bubble.
+  | { id: string; role: 'note'; traceId: string; text: string }
 
 function agentIcon(agent?: string): string {
   if (!agent) return 'smart_toy'
@@ -62,10 +70,16 @@ function turnsToMessages(turns: Array<{
   user_message: string
   response: string
   rating?: number | null
+  status?: string | null
 }>): ChatMessage[] {
   const restored: ChatMessage[] = []
   for (const turn of turns) {
     restored.push({ id: `${turn.trace_id}-user`, role: 'user', content: turn.user_message })
+    const outcome = turnOutcome(turn.status)
+    if (outcome.kind === 'note') {
+      restored.push({ id: turn.trace_id, role: 'note', traceId: turn.trace_id, text: outcome.text })
+      continue
+    }
     const { body, citations } = parseCitationsFromResponse(turn.response)
     restored.push({
       id: turn.trace_id,
@@ -88,6 +102,11 @@ export function ChatPage() {
   const [loading, setLoading] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 404 = the session is missing or belongs to someone else (the server does not say which).
+  const [notFound, setNotFound] = useState(false)
+  const notFoundRef = useRef<HTMLHeadingElement>(null)
+  // A failed first send navigates to the session the server created; that reload resets `error`, so the message rides here.
+  const carriedError = useRef<string | null>(null)
   const [expandedCitations, setExpandedCitations] = useState<string | null>(null)
   const [livePipeline, setLivePipeline] = useState<PipelineStep[]>([])
   const [pendingImage, setPendingImage] = useState<{
@@ -124,6 +143,7 @@ export function ChatPage() {
     setLoadingOlder(false)
     setOlderError(null)
     setOlderNotice('')
+    setNotFound(false)
 
     if (!routeSessionId) {
       setMessages([])
@@ -132,7 +152,8 @@ export function ChatPage() {
 
     let cancelled = false
     setLoadingHistory(true)
-    setError(null)
+    setError(carriedError.current)
+    carriedError.current = null
     setMessages([])
     historyLoadedForSession.current = null
 
@@ -146,20 +167,12 @@ export function ChatPage() {
         historyLoadedForSession.current = routeSessionId
 
         setNextBefore(data.has_more ? data.next_before : null)
-
-        // With more history behind it, turns[0] is not the conversation's first message, so it
-        // would overwrite the sidebar title with a mid-conversation one.
-        if (data.turns.length > 0 && !data.has_more) {
-          const first = data.turns[0]
-          upsertChatSession({
-            id: routeSessionId,
-            title: truncate(first.user_message, 40),
-            updatedAt: data.turns[data.turns.length - 1]?.created_at ?? new Date().toISOString(),
-          })
-        }
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
+        if (cancelled) return
+        if (err instanceof ApiError && err.status === 404) {
+          setNotFound(true)
+        } else {
           setError(err instanceof Error ? err.message : 'Could not load chat history')
         }
       })
@@ -171,6 +184,11 @@ export function ChatPage() {
       cancelled = true
     }
   }, [routeSessionId])
+
+  // The composer is disabled for a missing conversation; moving focus to the explanation tells keyboard and screen reader users why.
+  useEffect(() => {
+    if (notFound) notFoundRef.current?.focus()
+  }, [notFound])
 
   // Runs before paint and before the scroll effect below: shift the scroller by the height the
   // prepended turns added so the reader's current message stays where it was.
@@ -214,7 +232,7 @@ export function ChatPage() {
     try {
       const data = await api.chatHistory(sid, { before: nextBefore })
       if (!generation.current.isCurrent(ticket)) return
-      const known = new Set(messages.flatMap((m) => (m.role === 'assistant' ? [m.traceId] : [])))
+      const known = new Set(messages.flatMap((m) => (m.role === 'user' ? [] : [m.traceId])))
       const older = turnsToMessages(dropKnownTurns(data.turns, known))
       const el = scrollRef.current
       if (older.length > 0 && el) {
@@ -238,7 +256,7 @@ export function ChatPage() {
 
   const handleSend = useCallback(async () => {
     const text = message.trim()
-    if ((!text && !pendingImage) || loading || loadingHistory) return
+    if ((!text && !pendingImage) || loading || loadingHistory || notFound) return
 
     const attachment = pendingImage?.attachment
     const sentImage = pendingImage
@@ -273,7 +291,6 @@ export function ChatPage() {
         {
           message: text || displayText,
           session_id: activeSessionId ?? null,
-          user_id: 'frontend-user',
           attachments: attachment ? [attachment] : undefined,
         },
         appendStep,
@@ -292,11 +309,8 @@ export function ChatPage() {
         navigate(`/chat/${res.session_id}`, { replace: true })
       }
 
-      upsertChatSession({
-        id: res.session_id,
-        title: truncate(displayText, 40),
-        updatedAt: new Date().toISOString(),
-      })
+      // The sidebar list lives on the server; tell it this session is new or has a fresh turn.
+      window.dispatchEvent(new Event(SESSION_UPDATED_EVENT))
 
       const primaryAgent = res.worker_results[0]?.agent
       scrollToBottomOnUpdate.current = true
@@ -315,7 +329,16 @@ export function ChatPage() {
       ])
       setLivePipeline([])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send message')
+      const errorText = err instanceof Error ? err.message : 'Could not send message'
+      // The server may have created the session before failing; move there so the retry reuses it
+      // instead of leaving an orphan, and so the sidebar lists it.
+      const createdId = !routeSessionId && err instanceof ApiError ? err.sessionId : null
+      if (createdId) {
+        carriedError.current = errorText
+        navigate(`/chat/${createdId}`, { replace: true })
+      }
+      if (createdId || routeSessionId) window.dispatchEvent(new Event(SESSION_UPDATED_EVENT))
+      setError(errorText)
       setLivePipeline([])
       // Give the input back so a failed send costs a retry, not a retype. The bubble
       // goes too, otherwise resending would show the same message twice.
@@ -329,10 +352,10 @@ export function ChatPage() {
       const active = document.activeElement
       if (!active || active === document.body) textareaRef.current?.focus()
     }
-  }, [activeSessionId, loading, loadingHistory, message, navigate, pendingImage, routeSessionId])
+  }, [activeSessionId, loading, loadingHistory, message, navigate, notFound, pendingImage, routeSessionId])
 
   const handlePickImage = () => {
-    if (!loading && !loadingHistory) fileRef.current?.click()
+    if (!loading && !loadingHistory && !notFound) fileRef.current?.click()
   }
 
   const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -349,7 +372,7 @@ export function ChatPage() {
       })
   }
 
-  const canSend = (message.trim().length > 0 || !!pendingImage) && !loading && !loadingHistory
+  const canSend = (message.trim().length > 0 || !!pendingImage) && !loading && !loadingHistory && !notFound
 
   const handleRate = async (traceId: string, rating: number) => {
     try {
@@ -395,9 +418,25 @@ export function ChatPage() {
             </div>
           )}
 
-          {!loadingHistory && !hasMessages && routeSessionId && !error && (
+          {!loadingHistory && !hasMessages && routeSessionId && !error && !notFound && (
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <p className="text-body-md text-on-surface-variant">No messages in this conversation yet.</p>
+            </div>
+          )}
+
+          {!loadingHistory && notFound && (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <h2 ref={notFoundRef} tabIndex={-1} className="mb-2 text-headline-sm text-primary focus:outline-none">Conversation not found</h2>
+              <p className="mb-4 max-w-md text-body-md text-on-surface-variant">
+                It may have been removed, or it belongs to another account.
+              </p>
+              <Link
+                to="/chat"
+                className="flex items-center gap-2 rounded-lg border border-outline px-4 py-2 text-label-md text-on-surface transition-colors hover:bg-surface-container-low"
+              >
+                <MaterialIcon name="add" size={18} />
+                New conversation
+              </Link>
             </div>
           )}
 
@@ -434,6 +473,11 @@ export function ChatPage() {
                     {msg.content}
                   </div>
                 </div>
+              ) : msg.role === 'note' ? (
+                <p key={msg.id} data-msg-id={msg.id} tabIndex={-1} className="flex items-center gap-2 pl-10 text-body-md text-on-surface-variant">
+                  <MaterialIcon name="info" size={16} />
+                  {msg.text}
+                </p>
               ) : (
                 <div key={msg.id} data-msg-id={msg.id} tabIndex={-1} className="flex w-full flex-col gap-3">
                   <div className="mb-1 flex items-center gap-2">
@@ -599,14 +643,15 @@ export function ChatPage() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message to discuss..."
+            disabled={notFound}
+            placeholder={notFound ? 'This conversation is not available' : 'Type a message to discuss...'}
             className="min-h-[60px] max-h-[200px] w-full resize-none border-none bg-transparent px-4 py-4 text-body-lg text-on-surface focus:ring-0 focus:outline-none"
           />
           <div className="flex items-center justify-between px-3 pb-3">
             <button
               type="button"
               onClick={handlePickImage}
-              disabled={loading || loadingHistory}
+              disabled={loading || loadingHistory || notFound}
               className="rounded-md p-1.5 text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50"
               title="Attach image (OCR)"
               aria-label="Attach image"

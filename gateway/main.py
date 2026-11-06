@@ -3,23 +3,29 @@
 from __future__ import annotations
 
 import logging
+import base64
+import binascii
 import re
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy.exc import DataError
 
 from config import get_settings
 from config.version import SERVICE_VERSION
+from core.chat import store as chat_store
 from core.checkpointer import create_checkpointer
 from core.mcp.attachments import materialize_attachments
 from core.planning.media_tasks import image_only_default_message
 from core.observability.logging import setup_logging
 from core.search.ingestion import MAX_PARENT_DOC_ID_LEN
-from core.security.auth import verify_api_key
+from core.security.auth import Principal, require_admin, require_user, warm_up
+from core.security.throttle import purge_old_attempts
+from gateway.auth_routes import router as auth_router
 from workflows.graph import build_graph
-from workflows.runner import run_agent_workflow, set_graph, stream_agent_workflow
+from workflows.runner import GENERIC_ERROR_MESSAGE, run_agent_workflow, set_graph, stream_agent_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +33,28 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    # Fail before accepting a single request: without these every login would
+    # 500 (no secret to sign cookies) or sessions could not be stored.
+    if not settings.auth_secret_key:
+        raise RuntimeError("AUTH_SECRET_KEY is not set; refusing to start (see .env.example)")
+    if not settings.platform_database_url:
+        raise RuntimeError("PLATFORM_DATABASE_URL is not set; refusing to start (sessions live in the platform DB)")
     setup_logging(settings.log_level)
+    if not settings.auth_cookie_secure and settings.app_env != "local":
+        logger.warning("AUTH_COOKIE_SECURE is off with APP_ENV=%s: session cookies can travel over plain HTTP", settings.app_env)
+    warm_up()  # build the argon2 dummy hash now so the first unknown-email login is not a timing tell
+    purge_old_attempts()
     checkpointer = await create_checkpointer()
     set_graph(build_graph(checkpointer))
     logger.info("Gateway ready — checkpointer=%s", type(checkpointer).__name__)
     yield
+
+
+def _docs_kwargs(app_env: str) -> dict:
+    """The interactive docs and the OpenAPI schema list every route, so only a local run serves them."""
+    if app_env == "local":
+        return {}
+    return {"docs_url": None, "redoc_url": None, "openapi_url": None}
 
 
 app = FastAPI(
@@ -39,20 +62,51 @@ app = FastAPI(
     description="Triage → Plan → Agents → Eval",
     version=SERVICE_VERSION,
     lifespan=lifespan,
+    **_docs_kwargs(get_settings().app_env),
 )
+app.include_router(auth_router)
+
+
+# Every id the app generates (uuid4 hex, trace ids) and every legacy id in the DB (checked
+# 2026-11-06: 166 sessions, 242 feedback traces, max 32 chars) fits this; anything else cannot exist.
+_ID_PATTERN = r"^[A-Za-z0-9_-]+$"
+_ID_MAX_LENGTH = 100
+_CURSOR_MAX_LENGTH = 300
+
+
+def _reject_nul(value: str) -> str:
+    # Postgres text cannot hold NUL: it surfaces as a DB error (HTTP 500) instead of a clean 422.
+    if "\x00" in value:
+        raise ValueError("NUL characters are not allowed")
+    return value
 
 
 class ChatAttachment(BaseModel):
-    filename: str = "attachment"
-    mime_type: str = "image/png"
+    filename: str = Field("attachment", max_length=255)
+    mime_type: str = Field("image/png", max_length=255)
     data: str = Field(..., min_length=1, max_length=8_000_000)
+
+    _no_nul = field_validator("filename", "mime_type")(_reject_nul)
+
+    @field_validator("data")
+    @classmethod
+    def _valid_base64(cls, value: str) -> str:
+        # Checked here, before a session is created or a file written. Same "data:...,<b64>" split
+        # as materialize_attachments; whitespace is tolerated, anything else non-base64 is not.
+        payload = "".join(value.split(",")[-1].split())
+        try:
+            base64.b64decode(payload, validate=True)
+        except (binascii.Error, ValueError):
+            raise ValueError("data must be base64") from None
+        return value
 
 
 class ChatRequest(BaseModel):
     message: str = Field(default="", max_length=8000)
-    session_id: str | None = None
-    user_id: str = "anonymous"
+    session_id: str | None = Field(default=None, max_length=_ID_MAX_LENGTH, pattern=_ID_PATTERN)
     attachments: list[ChatAttachment] = Field(default_factory=list, max_length=3)
+
+    _no_nul = field_validator("message")(_reject_nul)
 
     @model_validator(mode="after")
     def require_message_or_attachment(self) -> "ChatRequest":
@@ -78,9 +132,11 @@ class ChatResponse(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    trace_id: str
+    trace_id: str = Field(..., max_length=_ID_MAX_LENGTH, pattern=_ID_PATTERN)
     rating: int = Field(..., ge=1, le=5)
-    comment: str = ""
+    comment: str = Field("", max_length=2000)
+
+    _no_nul = field_validator("comment")(_reject_nul)
 
 
 _DOC_ID_RE = re.compile(r"[A-Za-z0-9_.-]+")
@@ -141,7 +197,7 @@ async def health():
 
 
 @app.get("/api/v1/models")
-async def list_models(_: str | None = Depends(verify_api_key)):
+async def list_models(_: Principal = Depends(require_admin)):
     from core.llm.router import get_router
     from core.registry.agents import load_registry
     from core.registry.pipeline import load_pipeline_registry
@@ -171,7 +227,7 @@ async def list_models(_: str | None = Depends(verify_api_key)):
 
 
 @app.get("/api/v1/mcp/catalog")
-async def mcp_catalog(_: str | None = Depends(verify_api_key)):
+async def mcp_catalog(_: Principal = Depends(require_admin)):
     """List MCP servers + tools for app runtime (chat agents)."""
     from core.mcp.hub import format_tools_for_llm, get_tool_hub
 
@@ -194,13 +250,18 @@ async def mcp_catalog(_: str | None = Depends(verify_api_key)):
 
 
 @app.post("/api/v1/feedback")
-async def submit_feedback(request: FeedbackRequest, _: str | None = Depends(verify_api_key)):
+async def submit_feedback(request: FeedbackRequest, principal: Principal = Depends(require_user)):
     from core.intelligence.feedback_store import apply_user_rating
 
+    # Same 404 as an unknown trace: a different answer would confirm that someone else's trace exists.
+    if chat_store.trace_owner(request.trace_id) != principal.user_id:
+        raise HTTPException(status_code=404, detail=f"trace_id not found: {request.trace_id}")
     ok = apply_user_rating(
         trace_id=request.trace_id,
         rating=request.rating,
         comment=request.comment,
+        # Promotion copies the Q&A into the RAG store every user searches: admin ratings only.
+        auto_promote=principal.role == "admin",
     )
     if not ok:
         raise HTTPException(status_code=404, detail=f"trace_id not found: {request.trace_id}")
@@ -208,14 +269,14 @@ async def submit_feedback(request: FeedbackRequest, _: str | None = Depends(veri
 
 
 @app.get("/api/v1/admin/overview")
-async def admin_overview(_: str | None = Depends(verify_api_key)):
+async def admin_overview(_: Principal = Depends(require_admin)):
     from core.admin.overview import build_admin_overview
 
     return build_admin_overview()
 
 
 @app.post("/api/v1/admin/feedback/{trace_id}/promote")
-async def admin_promote_feedback(trace_id: str, _: str | None = Depends(verify_api_key)):
+async def admin_promote_feedback(trace_id: str, _: Principal = Depends(require_admin)):
     from core.intelligence.knowledge_promotion import load_feedback_for_promotion, promote_feedback_to_knowledge
 
     record = load_feedback_for_promotion(trace_id)
@@ -230,7 +291,7 @@ async def admin_promote_feedback(trace_id: str, _: str | None = Depends(verify_a
 
 
 @app.get("/api/v1/admin/stats")
-async def admin_stats(_: str | None = Depends(verify_api_key)):
+async def admin_stats(_: Principal = Depends(require_admin)):
     from core.admin.overview import build_admin_overview
 
     overview = build_admin_overview()
@@ -241,7 +302,7 @@ async def admin_stats(_: str | None = Depends(verify_api_key)):
 async def admin_audit(
     limit: int = 50,
     trace_id: str | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.observability.audit import list_audit
 
@@ -256,7 +317,7 @@ async def admin_audit(
 async def admin_feedback(
     limit: int = 50,
     min_rating: int | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.intelligence.feedback_store import list_feedback_records
 
@@ -270,7 +331,7 @@ async def admin_feedback_export(
     min_eval_score: float = 0.0,
     format: str = "jsonl",
     limit: int = 1000,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from fastapi.responses import PlainTextResponse
 
@@ -296,7 +357,7 @@ async def admin_feedback_export(
 async def admin_list_knowledge(
     limit: int = 50,
     domain: str | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.search.pgvector_store import list_documents
 
@@ -311,7 +372,7 @@ async def admin_list_knowledge(
 @app.post("/api/v1/admin/knowledge")
 async def admin_ingest_knowledge(
     request: KnowledgeIngestRequest,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.search.embeddings import embed_text
     from core.search.pgvector_store import upsert_document
@@ -335,7 +396,7 @@ async def admin_ingest_knowledge(
 @app.post("/api/v1/admin/knowledge/chunk-preview")
 async def admin_chunk_preview(
     request: ChunkPreviewRequest,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     """Preview chunks + quality score — does NOT write to DB."""
     from core.search.ingestion import preview_document
@@ -351,7 +412,7 @@ async def admin_chunk_preview(
 @app.post("/api/v1/admin/knowledge/chunk-eval")
 async def admin_chunk_eval(
     request: ChunkEvalRequest,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     """Dry-run: embed query and score each chunk — check if chunking is reasonable."""
     from core.search.chunking import chunk_text
@@ -398,7 +459,7 @@ async def admin_upload_knowledge(
     chunk_size: int | None = Form(None),
     chunk_overlap: int | None = Form(None),
     preview_only: bool = Form(False),
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     """Upload PDF/DOCX/TXT → chunk → embed → store. preview_only=true returns chunks only."""
     from core.search.ingestion import ingest_file_bytes, preview_document
@@ -454,7 +515,7 @@ def admin_list_knowledge_documents(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     domain: str | None = None,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     """One entry per document (chunks grouped); limit/offset count documents."""
     from core.search.azure_search import azure_search_enabled
@@ -476,7 +537,7 @@ def admin_list_knowledge_documents(
 # FastAPI matches in declaration order.
 @app.get("/api/v1/admin/knowledge/documents/{doc_id}")
 def admin_get_knowledge_document(
-    _: str | None = Depends(verify_api_key),  # before doc_id: auth must run before validation
+    _: Principal = Depends(require_admin),  # before doc_id: auth must run before validation
     doc_id: str = Depends(_valid_doc_id),
 ):
     from core.search.azure_search import azure_search_enabled
@@ -493,7 +554,7 @@ def admin_get_knowledge_document(
 
 @app.delete("/api/v1/admin/knowledge/documents/{doc_id}")
 def admin_delete_knowledge_document(
-    _: str | None = Depends(verify_api_key),  # before doc_id: auth must run before validation
+    _: Principal = Depends(require_admin),  # before doc_id: auth must run before validation
     doc_id: str = Depends(_valid_doc_id),
 ):
     """Hard delete (Azure first, then Postgres). Azure failure -> 502 and Postgres is kept."""
@@ -536,7 +597,7 @@ def _audit_knowledge_delete(doc_id: str, *, deleted_rows: int, azure: dict | Non
 @app.get("/api/v1/admin/knowledge/{parent_doc_id}/chunks")
 async def admin_list_document_chunks(
     parent_doc_id: str,
-    _: str | None = Depends(verify_api_key),
+    _: Principal = Depends(require_admin),
 ):
     from core.search.ingestion import get_parent_chunks
 
@@ -546,24 +607,33 @@ async def admin_list_document_chunks(
 
 @app.get("/api/v1/chat/sessions")
 async def chat_sessions(
-    limit: int = 30,
-    _: str | None = Depends(verify_api_key),
+    limit: int = Query(30, ge=1),
+    before: str | None = Query(None, max_length=_CURSOR_MAX_LENGTH),
+    principal: Principal = Depends(require_user),
 ):
-    from core.intelligence.feedback_store import list_recent_sessions
-
-    items = list_recent_sessions(limit=min(limit, 100))
-    return {"items": items, "count": len(items)}
+    try:
+        items, next_before = chat_store.list_sessions(
+            principal.user_id, limit=min(limit, 100), before=before
+        )
+    # DataError: a cursor that decodes cleanly but carries a NUL in its session id; the store
+    # hands it to Postgres, which refuses it.
+    except (ValueError, DataError):
+        raise HTTPException(status_code=422, detail="Invalid 'before' cursor") from None
+    return {
+        "items": items,
+        "count": len(items),
+        "has_more": next_before is not None,
+        "next_before": next_before,
+    }
 
 
 @app.get("/api/v1/chat/history")
 async def chat_history(
-    session_id: str,
+    session_id: str = Query(..., max_length=_ID_MAX_LENGTH, pattern=_ID_PATTERN),
     limit: int = Query(50, ge=1),
-    before: str | None = None,
-    _: str | None = Depends(verify_api_key),
+    before: str | None = Query(None, max_length=_CURSOR_MAX_LENGTH),
+    principal: Principal = Depends(require_user),
 ):
-    from core.intelligence.feedback_store import list_session_traces
-
     before_id: int | None = None
     if before is not None:
         try:
@@ -573,13 +643,17 @@ async def chat_history(
         # Ids are positive bigints; anything else is a forged cursor, so reject before the DB sees it.
         if not 0 < before_id <= 2**63 - 1:
             raise HTTPException(status_code=422, detail="Invalid 'before' cursor")
-    page = list_session_traces(session_id, limit=min(limit, 100), before_id=before_id)
+    if chat_store.get_owned_session(session_id, principal.user_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    turns, has_more, next_before = chat_store.list_turns(
+        session_id, limit=min(limit, 100), before=before_id
+    )
     return {
         "session_id": session_id,
-        "turns": page["turns"],
-        "count": len(page["turns"]),
-        "has_more": page["has_more"],
-        "next_before": page["next_before"],
+        "turns": turns,
+        "count": len(turns),
+        "has_more": has_more,
+        "next_before": next_before,
     }
 
 
@@ -592,42 +666,76 @@ def _chat_message_for_workflow(message: str, attachments: list) -> str:
     return text
 
 
+def _require_owned_session(request: ChatRequest, principal: Principal) -> None:
+    """A given id must be owned by the caller; a missing or foreign one is the same 404 so ids of
+    other users' sessions cannot be probed. Runs before anything is written."""
+    if request.session_id is not None and chat_store.get_owned_session(request.session_id, principal.user_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+
+def _session_for_turn(request: ChatRequest, principal: Principal, message: str) -> str:
+    """The owned session, or a new one. Called last, once the request is known to be good, so a
+    bad request never leaves an empty session behind."""
+    if request.session_id is None:
+        return chat_store.create_session(principal.user_id, message)
+    return request.session_id
+
+
+def _chat_failure(session_id: str | None) -> JSONResponse:
+    """Generic 500 for a failed turn. The session id rides along whenever one exists (same as the
+    SSE `error` event), so the client retries in it instead of creating an orphan."""
+    body: dict = {"detail": GENERIC_ERROR_MESSAGE}
+    if session_id is not None:
+        body["session_id"] = session_id
+    return JSONResponse(status_code=500, content=body)
+
+
 @app.post("/api/v1/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, _: str | None = Depends(verify_api_key)):
+async def chat(request: ChatRequest, principal: Principal = Depends(require_user)):
+    message = _chat_message_for_workflow(request.message, request.attachments)
+    _require_owned_session(request, principal)
     try:
         attachments = materialize_attachments([a.model_dump() for a in request.attachments])
+    except Exception:
+        logger.exception("chat attachments failed session=%s", request.session_id)
+        return _chat_failure(request.session_id)
+    session_id = _session_for_turn(request, principal, message)
+    try:
         return ChatResponse(**await run_agent_workflow(
-            _chat_message_for_workflow(request.message, attachments),
-            user_id=request.user_id,
-            session_id=request.session_id,
+            message,
+            user_id=principal.user_id,
+            session_id=session_id,
             attachments=attachments,
         ))
-    except Exception as exc:
-        logger.exception("chat failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("chat failed session=%s", session_id)
+        return _chat_failure(session_id)
 
 
 @app.post("/api/v1/chat/stream")
-async def chat_stream(request: ChatRequest, _: str | None = Depends(verify_api_key)):
+async def chat_stream(request: ChatRequest, principal: Principal = Depends(require_user)):
+    message = _chat_message_for_workflow(request.message, request.attachments)
+    _require_owned_session(request, principal)
     try:
         attachments = materialize_attachments([a.model_dump() for a in request.attachments])
-        return StreamingResponse(
-            stream_agent_workflow(
-                _chat_message_for_workflow(request.message, attachments),
-                user_id=request.user_id,
-                session_id=request.session_id,
-                attachments=attachments,
-            ),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
-    except Exception as exc:
-        logger.exception("chat stream failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("chat stream attachments failed session=%s", request.session_id)
+        return _chat_failure(request.session_id)
+    session_id = _session_for_turn(request, principal, message)
+    return StreamingResponse(
+        stream_agent_workflow(
+            message,
+            user_id=principal.user_id,
+            session_id=session_id,
+            attachments=attachments,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def main():

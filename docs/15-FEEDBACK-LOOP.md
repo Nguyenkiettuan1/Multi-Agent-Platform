@@ -49,6 +49,7 @@ python scripts/db_migrate.py   # 008: unique trace_id
 ```powershell
 curl -X POST http://localhost:8000/api/v1/chat `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: $env:API_KEY" `
   -d "{\"message\": \"Xin chào\"}"
 # Get trace_id from response
 ```
@@ -58,15 +59,16 @@ curl -X POST http://localhost:8000/api/v1/chat `
 ```powershell
 curl -X POST http://localhost:8000/api/v1/feedback `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: $env:API_KEY" `
   -d "{\"trace_id\": \"abc123...\", \"rating\": 5, \"comment\": \"Hay\"}"
 ```
 
 ### View / export
 
 ```powershell
-curl http://localhost:8000/api/v1/admin/feedback?limit=10
+curl http://localhost:8000/api/v1/admin/feedback?limit=10 -H "X-API-Key: $env:API_KEY"
 
-curl "http://localhost:8000/api/v1/admin/feedback/export?min_rating=4&format=openai" -o train.jsonl
+curl "http://localhost:8000/api/v1/admin/feedback/export?min_rating=4&format=openai" -H "X-API-Key: $env:API_KEY" -o train.jsonl
 
 python scripts/export_feedback.py --min-rating 4 --format openai -o data/train.jsonl
 ```
@@ -96,14 +98,14 @@ python scripts/export_feedback.py --min-rating 4 --format openai -o data/train.j
 | Semantic reranker | ✅ `SEARCH_RERANK_ENABLED=true` (enabled by default) |
 | Rule: citations_present | ✅ In `evaluator.py` |
 | Langfuse tracing | ✅ `LANGFUSE_TRACING_ENABLED=true` |
-| Auto-promote Q&A → RAG | ✅ `FEEDBACK_AUTO_PROMOTE_MIN_RATING=5` |
+| Auto-promote Q&A → RAG (admin ratings only) | ✅ `FEEDBACK_AUTO_PROMOTE_MIN_RATING=5` |
 | Manual promote | ✅ `POST /api/v1/admin/feedback/{trace_id}/promote` |
 
 ---
 
 ## P2 — Feedback → RAG promotion
 
-When user rating ≥ `FEEDBACK_AUTO_PROMOTE_MIN_RATING` (default 5), the system automatically indexes Q&A into `app.knowledge_documents` with `source=feedback_promoted`.
+When an **admin** (or the API-key service user) rates a turn ≥ `FEEDBACK_AUTO_PROMOTE_MIN_RATING` (default 5), the system automatically indexes Q&A into `app.knowledge_documents` with `source=feedback_promoted`.
 
 Migration `009_feedback_promotion.sql` adds columns `promoted_to_rag`, `promoted_doc_id`.
 
