@@ -100,6 +100,38 @@ def test_create_user_rejects_empty_email(blank):
         users.create_user(blank, "X", "user", PASSWORD, False)
 
 
+@pytest.mark.parametrize(
+    "bad",
+    ["no-at-sign", "a@b@c.test", "@example.test", "name@", "name@nodot", "na me@example.test", "x" * 320 + "@a.test"],
+)
+def test_validate_email_rejects_malformed_or_overlong(bad):
+    with pytest.raises(ValueError, match="email"):
+        users.validate_email(bad)
+
+
+def test_validate_email_normalises_and_accepts_localhost_and_320_chars():
+    assert users.validate_email("  Nguyễn.Văn@Example.TEST ") == "nguyễn.văn@example.test"
+    assert users.validate_email("admin@localhost") == "admin@localhost"
+    longest = "x" * (320 - len("@a.test")) + "@a.test"
+    assert users.validate_email(longest) == longest
+
+
+def test_create_user_rejects_bad_email_and_long_name_before_hashing(monkeypatch):
+    def boom(_):
+        raise AssertionError("must validate before hashing")
+
+    monkeypatch.setattr(users, "hash_password", boom)
+    with pytest.raises(ValueError, match="email"):
+        users.create_user("not-an-email", "X", "user", PASSWORD, False)
+    with pytest.raises(ValueError, match="display name"):
+        users.create_user(_email(), "x" * 201, "user", PASSWORD, False)
+
+
+def test_display_name_limit_counts_code_points():
+    with _created_user(display_name="ạ" * 200) as user:
+        assert len(user.display_name) == 200
+
+
 def test_session_ttl_setting_is_bounded():
     from pydantic import ValidationError
 

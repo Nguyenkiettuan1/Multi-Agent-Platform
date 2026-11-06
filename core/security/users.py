@@ -54,6 +54,41 @@ def normalize_email(raw: str) -> str:
     return unicodedata.normalize("NFC", raw.strip()).lower()
 
 
+EMAIL_MAX_LENGTH = 320  # platform.users.email VARCHAR(320)
+DISPLAY_NAME_MAX_LENGTH = 200  # platform.users.display_name VARCHAR(200)
+
+
+def validate_email(raw: str) -> str:
+    """Normalised email, or ValueError.
+
+    Deliberately basic (no RFC 5322): exactly one "@", no whitespace, non-empty
+    local part, and a domain that has a dot or is "localhost". Real ownership is
+    not checked here; this only keeps garbage and over-long values out of the DB.
+    """
+    email = normalize_email(raw)
+    if not email:
+        raise ValueError("email must not be empty")
+    if len(email) > EMAIL_MAX_LENGTH:
+        raise ValueError(f"email must be at most {EMAIL_MAX_LENGTH} characters")
+    local, sep, domain = email.partition("@")
+    if (
+        not sep
+        or "@" in domain
+        or not local
+        or not domain
+        or any(c.isspace() for c in email)
+        or not ("." in domain or domain == "localhost")
+    ):
+        raise ValueError("email is not a valid address (expected name@domain.tld)")
+    return email
+
+
+def validate_display_name(name: str) -> None:
+    # len() counts code points, matching how VARCHAR(n) counts characters.
+    if len(name) > DISPLAY_NAME_MAX_LENGTH:
+        raise ValueError(f"display name must be at most {DISPLAY_NAME_MAX_LENGTH} characters")
+
+
 def _to_user(row) -> User:
     return User(
         id=row.id,
@@ -72,9 +107,9 @@ def _to_user(row) -> User:
 def create_user(
     email: str, display_name: str, role: str, password: str, must_change_password: bool
 ) -> User:
-    email_norm = normalize_email(email)
-    if not email_norm:
-        raise ValueError("email must not be empty")
+    # All checks run before hashing, so no failure after this point can carry the hash.
+    email_norm = validate_email(email)
+    validate_display_name(display_name)
     if role not in ROLES:
         raise ValueError(f"role must be one of {ROLES}, got {role!r}")
     errors = validate_password(password, email=email_norm)

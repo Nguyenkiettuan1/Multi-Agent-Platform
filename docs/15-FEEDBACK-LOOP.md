@@ -49,6 +49,7 @@ python scripts/db_migrate.py   # 008: unique trace_id
 ```powershell
 curl -X POST http://localhost:8000/api/v1/chat `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: $env:API_KEY" `
   -d "{\"message\": \"Xin chào\"}"
 # Get trace_id from response
 ```
@@ -58,15 +59,16 @@ curl -X POST http://localhost:8000/api/v1/chat `
 ```powershell
 curl -X POST http://localhost:8000/api/v1/feedback `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: $env:API_KEY" `
   -d "{\"trace_id\": \"abc123...\", \"rating\": 5, \"comment\": \"Hay\"}"
 ```
 
 ### View / export
 
 ```powershell
-curl http://localhost:8000/api/v1/admin/feedback?limit=10
+curl http://localhost:8000/api/v1/admin/feedback?limit=10 -H "X-API-Key: $env:API_KEY"
 
-curl "http://localhost:8000/api/v1/admin/feedback/export?min_rating=4&format=openai" -o train.jsonl
+curl "http://localhost:8000/api/v1/admin/feedback/export?min_rating=4&format=openai" -H "X-API-Key: $env:API_KEY" -o train.jsonl
 
 python scripts/export_feedback.py --min-rating 4 --format openai -o data/train.jsonl
 ```

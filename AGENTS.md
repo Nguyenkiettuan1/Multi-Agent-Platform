@@ -84,8 +84,10 @@ python -m gateway.main
 
 ```bash
 # Chat
+# Needs credentials: API_KEY set in .env + X-API-Key header (or a signed-in session cookie, see docs/12-LOCAL-SETUP.md)
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
   -d '{"message": "How many active contracts?"}'
 
 # With image OCR (via frontend or attachments in JSON)

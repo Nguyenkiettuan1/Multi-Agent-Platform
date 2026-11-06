@@ -171,7 +171,8 @@ python scripts/ingest_document.py `
   --content "Nội dung đầy đủ..." `
   --domain general
 
-# 4. Or via API (requires API_KEY if auth is enabled)
+# 4. Or via API (admin only: X-API-Key with API_KEY set in .env, or a signed-in admin
+#    session cookie + X-Requested-With header; see docs/12-LOCAL-SETUP.md)
 curl -X POST http://localhost:8000/api/v1/admin/knowledge `
   -H "Content-Type: application/json" `
   -H "X-API-Key: your-key" `
@@ -265,6 +266,7 @@ Indexes → knowledge-index → Import data → JSON:
 # Message that triggers research
 curl -X POST http://localhost:8000/api/v1/chat `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: your-key" `
   -d "{\"message\": \"Tìm tài liệu về hợp đồng lao động\"}"
 ```
 
@@ -310,7 +312,7 @@ LIMIT 20;
 
 ## 7. Dashboard endpoints
 
-All under `/api/v1/admin/*` — require `X-API-Key` if `API_KEY` is set in `.env`.
+All under `/api/v1/admin/*` — **admin only**: sign in as an admin (session cookie), or send `X-API-Key` (needs `API_KEY` set in `.env`; an empty `API_KEY` does not open the API). Without either: `401`. A non-admin user: `403`. `/api/v1/models` and `/api/v1/mcp/catalog` are admin only too. With a cookie session, unsafe methods (`POST`/`PUT`/`PATCH`/`DELETE`) also need the header `X-Requested-With: XMLHttpRequest`. See `docs/12-LOCAL-SETUP.md`.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -321,8 +323,8 @@ All under `/api/v1/admin/*` — require `X-API-Key` if `API_KEY` is set in `.env
 | `/api/v1/admin/knowledge` | POST | Ingest new doc |
 | `/health` | GET | Health check (public) |
 | `/api/v1/models` | GET | Model routing info |
-| `/api/v1/chat` | POST | Main chat |
-| `/api/v1/feedback` | POST | User submits rating |
+| `/api/v1/chat` | POST | Main chat (any signed-in user) |
+| `/api/v1/feedback` | POST | User submits rating (any signed-in user) |
 
 **Not yet available:** UI dashboard, Prometheus metrics, Langfuse tracing, session replay.
 
@@ -334,13 +336,15 @@ All under `/api/v1/admin/*` — require `X-API-Key` if `API_KEY` is set in `.env
 # After chat, get trace_id from response
 curl -X POST http://localhost:8000/api/v1/feedback `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: your-key" `
   -d "{\"trace_id\": \"abc123...\", \"rating\": 5, \"comment\": \"Hay\"}"
 ```
 
 Saved to `platform.feedback` + in-memory. Read back:
 
 ```powershell
-curl http://localhost:8000/api/v1/admin/feedback?limit=10
+curl http://localhost:8000/api/v1/admin/feedback?limit=10 `
+  -H "X-API-Key: your-key"
 ```
 
 ---
@@ -377,7 +381,7 @@ Add to checklist:
 | Small internal docs | pgvector in Azure PostgreSQL |
 | Embeddings | Azure OpenAI `text-embedding-3-small` (not wired yet — use OpenRouter temporarily) |
 | Audit | Enable `PLATFORM_DATABASE_URL`, monitor via admin API |
-| Auth | Set `API_KEY` in production |
+| Auth | Set a strong `AUTH_SECRET_KEY`; keep `AUTH_COOKIE_SECURE=true` behind HTTPS; set `API_KEY` only if scripts need it |
 
 ---
 
@@ -432,6 +436,7 @@ python scripts/ingest_file.py docs/sample.pdf --preview
 
 # Or API:
 curl -X POST http://localhost:8000/api/v1/admin/knowledge/upload `
+  -H "X-API-Key: your-key" `
   -F "file=@sample.pdf" `
   -F "preview_only=true"
 ```
@@ -454,6 +459,7 @@ Or API:
 ```powershell
 curl -X POST http://localhost:8000/api/v1/admin/knowledge/chunk-eval `
   -H "Content-Type: application/json" `
+  -H "X-API-Key: your-key" `
   -d "{\"content\": \"...\", \"query\": \"điều khoản thanh toán\"}"
 ```
 
@@ -477,13 +483,15 @@ python scripts/ingest_file.py docs/sample.pdf --domain legal
 
 # Or upload API:
 curl -X POST http://localhost:8000/api/v1/admin/knowledge/upload `
+  -H "X-API-Key: your-key" `
   -F "file=@sample.pdf" `
   -F "domain=legal"
 ```
 
 View saved chunks:
 ```powershell
-curl http://localhost:8000/api/v1/admin/knowledge/my-doc/chunks
+curl http://localhost:8000/api/v1/admin/knowledge/my-doc/chunks `
+  -H "X-API-Key: your-key"
 ```
 
 ### Required migration
