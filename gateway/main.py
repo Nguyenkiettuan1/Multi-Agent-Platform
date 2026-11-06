@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import logging
+import base64
+import binascii
 import re
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
+from sqlalchemy.exc import DataError
 
 from config import get_settings
 from config.version import SERVICE_VERSION
+from core.chat import store as chat_store
 from core.checkpointer import create_checkpointer
 from core.mcp.attachments import materialize_attachments
 from core.planning.media_tasks import image_only_default_message
@@ -21,7 +25,7 @@ from core.security.auth import Principal, require_admin, require_user, warm_up
 from core.security.throttle import purge_old_attempts
 from gateway.auth_routes import router as auth_router
 from workflows.graph import build_graph
-from workflows.runner import run_agent_workflow, set_graph, stream_agent_workflow
+from workflows.runner import GENERIC_ERROR_MESSAGE, run_agent_workflow, set_graph, stream_agent_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -46,26 +50,63 @@ async def lifespan(app: FastAPI):
     yield
 
 
+def _docs_kwargs(app_env: str) -> dict:
+    """The interactive docs and the OpenAPI schema list every route, so only a local run serves them."""
+    if app_env == "local":
+        return {}
+    return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
+
 app = FastAPI(
     title="Multi-Agent Platform API",
     description="Triage → Plan → Agents → Eval",
     version=SERVICE_VERSION,
     lifespan=lifespan,
+    **_docs_kwargs(get_settings().app_env),
 )
 app.include_router(auth_router)
 
 
+# Every id the app generates (uuid4 hex, trace ids) and every legacy id in the DB (checked
+# 2026-11-06: 166 sessions, 242 feedback traces, max 32 chars) fits this; anything else cannot exist.
+_ID_PATTERN = r"^[A-Za-z0-9_-]+$"
+_ID_MAX_LENGTH = 100
+_CURSOR_MAX_LENGTH = 300
+
+
+def _reject_nul(value: str) -> str:
+    # Postgres text cannot hold NUL: it surfaces as a DB error (HTTP 500) instead of a clean 422.
+    if "\x00" in value:
+        raise ValueError("NUL characters are not allowed")
+    return value
+
+
 class ChatAttachment(BaseModel):
-    filename: str = "attachment"
-    mime_type: str = "image/png"
+    filename: str = Field("attachment", max_length=255)
+    mime_type: str = Field("image/png", max_length=255)
     data: str = Field(..., min_length=1, max_length=8_000_000)
+
+    _no_nul = field_validator("filename", "mime_type")(_reject_nul)
+
+    @field_validator("data")
+    @classmethod
+    def _valid_base64(cls, value: str) -> str:
+        # Checked here, before a session is created or a file written. Same "data:...,<b64>" split
+        # as materialize_attachments; whitespace is tolerated, anything else non-base64 is not.
+        payload = "".join(value.split(",")[-1].split())
+        try:
+            base64.b64decode(payload, validate=True)
+        except (binascii.Error, ValueError):
+            raise ValueError("data must be base64") from None
+        return value
 
 
 class ChatRequest(BaseModel):
     message: str = Field(default="", max_length=8000)
-    session_id: str | None = None
-    user_id: str = "anonymous"
+    session_id: str | None = Field(default=None, max_length=_ID_MAX_LENGTH, pattern=_ID_PATTERN)
     attachments: list[ChatAttachment] = Field(default_factory=list, max_length=3)
+
+    _no_nul = field_validator("message")(_reject_nul)
 
     @model_validator(mode="after")
     def require_message_or_attachment(self) -> "ChatRequest":
@@ -91,9 +132,11 @@ class ChatResponse(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    trace_id: str
+    trace_id: str = Field(..., max_length=_ID_MAX_LENGTH, pattern=_ID_PATTERN)
     rating: int = Field(..., ge=1, le=5)
-    comment: str = ""
+    comment: str = Field("", max_length=2000)
+
+    _no_nul = field_validator("comment")(_reject_nul)
 
 
 _DOC_ID_RE = re.compile(r"[A-Za-z0-9_.-]+")
@@ -207,13 +250,18 @@ async def mcp_catalog(_: Principal = Depends(require_admin)):
 
 
 @app.post("/api/v1/feedback")
-async def submit_feedback(request: FeedbackRequest, _: Principal = Depends(require_user)):
+async def submit_feedback(request: FeedbackRequest, principal: Principal = Depends(require_user)):
     from core.intelligence.feedback_store import apply_user_rating
 
+    # Same 404 as an unknown trace: a different answer would confirm that someone else's trace exists.
+    if chat_store.trace_owner(request.trace_id) != principal.user_id:
+        raise HTTPException(status_code=404, detail=f"trace_id not found: {request.trace_id}")
     ok = apply_user_rating(
         trace_id=request.trace_id,
         rating=request.rating,
         comment=request.comment,
+        # Promotion copies the Q&A into the RAG store every user searches: admin ratings only.
+        auto_promote=principal.role == "admin",
     )
     if not ok:
         raise HTTPException(status_code=404, detail=f"trace_id not found: {request.trace_id}")
@@ -559,24 +607,33 @@ async def admin_list_document_chunks(
 
 @app.get("/api/v1/chat/sessions")
 async def chat_sessions(
-    limit: int = 30,
-    _: Principal = Depends(require_user),
+    limit: int = Query(30, ge=1),
+    before: str | None = Query(None, max_length=_CURSOR_MAX_LENGTH),
+    principal: Principal = Depends(require_user),
 ):
-    from core.intelligence.feedback_store import list_recent_sessions
-
-    items = list_recent_sessions(limit=min(limit, 100))
-    return {"items": items, "count": len(items)}
+    try:
+        items, next_before = chat_store.list_sessions(
+            principal.user_id, limit=min(limit, 100), before=before
+        )
+    # DataError: a cursor that decodes cleanly but carries a NUL in its session id; the store
+    # hands it to Postgres, which refuses it.
+    except (ValueError, DataError):
+        raise HTTPException(status_code=422, detail="Invalid 'before' cursor") from None
+    return {
+        "items": items,
+        "count": len(items),
+        "has_more": next_before is not None,
+        "next_before": next_before,
+    }
 
 
 @app.get("/api/v1/chat/history")
 async def chat_history(
-    session_id: str,
+    session_id: str = Query(..., max_length=_ID_MAX_LENGTH, pattern=_ID_PATTERN),
     limit: int = Query(50, ge=1),
-    before: str | None = None,
-    _: Principal = Depends(require_user),
+    before: str | None = Query(None, max_length=_CURSOR_MAX_LENGTH),
+    principal: Principal = Depends(require_user),
 ):
-    from core.intelligence.feedback_store import list_session_traces
-
     before_id: int | None = None
     if before is not None:
         try:
@@ -586,13 +643,17 @@ async def chat_history(
         # Ids are positive bigints; anything else is a forged cursor, so reject before the DB sees it.
         if not 0 < before_id <= 2**63 - 1:
             raise HTTPException(status_code=422, detail="Invalid 'before' cursor")
-    page = list_session_traces(session_id, limit=min(limit, 100), before_id=before_id)
+    if chat_store.get_owned_session(session_id, principal.user_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    turns, has_more, next_before = chat_store.list_turns(
+        session_id, limit=min(limit, 100), before=before_id
+    )
     return {
         "session_id": session_id,
-        "turns": page["turns"],
-        "count": len(page["turns"]),
-        "has_more": page["has_more"],
-        "next_before": page["next_before"],
+        "turns": turns,
+        "count": len(turns),
+        "has_more": has_more,
+        "next_before": next_before,
     }
 
 
@@ -605,42 +666,76 @@ def _chat_message_for_workflow(message: str, attachments: list) -> str:
     return text
 
 
+def _require_owned_session(request: ChatRequest, principal: Principal) -> None:
+    """A given id must be owned by the caller; a missing or foreign one is the same 404 so ids of
+    other users' sessions cannot be probed. Runs before anything is written."""
+    if request.session_id is not None and chat_store.get_owned_session(request.session_id, principal.user_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+
+def _session_for_turn(request: ChatRequest, principal: Principal, message: str) -> str:
+    """The owned session, or a new one. Called last, once the request is known to be good, so a
+    bad request never leaves an empty session behind."""
+    if request.session_id is None:
+        return chat_store.create_session(principal.user_id, message)
+    return request.session_id
+
+
+def _chat_failure(session_id: str | None) -> JSONResponse:
+    """Generic 500 for a failed turn. The session id rides along whenever one exists (same as the
+    SSE `error` event), so the client retries in it instead of creating an orphan."""
+    body: dict = {"detail": GENERIC_ERROR_MESSAGE}
+    if session_id is not None:
+        body["session_id"] = session_id
+    return JSONResponse(status_code=500, content=body)
+
+
 @app.post("/api/v1/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, _: Principal = Depends(require_user)):
+async def chat(request: ChatRequest, principal: Principal = Depends(require_user)):
+    message = _chat_message_for_workflow(request.message, request.attachments)
+    _require_owned_session(request, principal)
     try:
         attachments = materialize_attachments([a.model_dump() for a in request.attachments])
+    except Exception:
+        logger.exception("chat attachments failed session=%s", request.session_id)
+        return _chat_failure(request.session_id)
+    session_id = _session_for_turn(request, principal, message)
+    try:
         return ChatResponse(**await run_agent_workflow(
-            _chat_message_for_workflow(request.message, attachments),
-            user_id=request.user_id,
-            session_id=request.session_id,
+            message,
+            user_id=principal.user_id,
+            session_id=session_id,
             attachments=attachments,
         ))
-    except Exception as exc:
-        logger.exception("chat failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("chat failed session=%s", session_id)
+        return _chat_failure(session_id)
 
 
 @app.post("/api/v1/chat/stream")
-async def chat_stream(request: ChatRequest, _: Principal = Depends(require_user)):
+async def chat_stream(request: ChatRequest, principal: Principal = Depends(require_user)):
+    message = _chat_message_for_workflow(request.message, request.attachments)
+    _require_owned_session(request, principal)
     try:
         attachments = materialize_attachments([a.model_dump() for a in request.attachments])
-        return StreamingResponse(
-            stream_agent_workflow(
-                _chat_message_for_workflow(request.message, attachments),
-                user_id=request.user_id,
-                session_id=request.session_id,
-                attachments=attachments,
-            ),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
-    except Exception as exc:
-        logger.exception("chat stream failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("chat stream attachments failed session=%s", request.session_id)
+        return _chat_failure(request.session_id)
+    session_id = _session_for_turn(request, principal, message)
+    return StreamingResponse(
+        stream_agent_workflow(
+            message,
+            user_id=principal.user_id,
+            session_id=session_id,
+            attachments=attachments,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def main():

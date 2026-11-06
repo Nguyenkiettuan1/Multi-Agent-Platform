@@ -314,7 +314,8 @@ def test_must_change_user_is_blocked_everywhere_but_the_exempt_routes(anon_clien
         headers=CSRF_HEADERS,
     )
     assert done.status_code == 204
-    assert anon_client.get("/api/v1/chat/history", params={"session_id": "x"}).status_code == 200
+    # Authenticated again; an unknown session is 404 (not 403), so the password gate is gone.
+    assert anon_client.get("/api/v1/chat/history", params={"session_id": "x"}).status_code == 404
 
 
 def test_must_change_user_can_still_log_out(anon_client, make_user):
@@ -401,9 +402,10 @@ def test_regular_user_gets_403_on_admin_routes(user_client, method, path):
 
 @pytest.mark.parametrize("method,path", USER_ROUTES)
 def test_regular_user_passes_authentication_on_user_routes(user_client, method, path):
-    # Empty body: chat/feedback answer 422 only after the auth dependency let us in.
+    # Empty body: chat/feedback answer 422 only after the auth dependency let us in; history of an
+    # unknown session answers 404. The point is "authentication passed": never 401/403.
     r = user_client.request(method, path, json={} if method == "POST" else None)
-    assert r.status_code in (200, 422)
+    assert r.status_code in (200, 404, 422)
 
 
 def test_api_key_acts_as_admin(api_key_client):

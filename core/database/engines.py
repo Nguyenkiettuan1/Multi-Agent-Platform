@@ -21,14 +21,14 @@ def to_psycopg_conninfo(url: str) -> str:
 @lru_cache
 def get_app_read_engine() -> Engine:
     """Read-only app schema (agent_reader) — search, list."""
-    return create_engine(get_settings().database_url)
+    return create_engine(get_settings().database_url, hide_parameters=True)
 
 
 @lru_cache
 def get_app_write_engine() -> Engine:
     """Write app schema — ingest, migrations, admin."""
     settings = get_settings()
-    return create_engine(settings.migrate_database_url or settings.database_url)
+    return create_engine(settings.migrate_database_url or settings.database_url, hide_parameters=True)
 
 
 @lru_cache
@@ -37,7 +37,7 @@ def get_platform_engine() -> Engine:
     settings = get_settings()
     if not settings.platform_database_url:
         raise RuntimeError("PLATFORM_DATABASE_URL is not configured")
-    return create_engine(settings.platform_database_url)
+    return create_engine(settings.platform_database_url, hide_parameters=True)
 
 
 def platform_db_configured() -> bool:
