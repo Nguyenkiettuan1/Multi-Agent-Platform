@@ -35,8 +35,9 @@ python -m gateway.main
 | Session list & history | Implemented |
 | Image upload for OCR | Implemented |
 | Admin dashboard (`/admin/*`) | Implemented |
-| API key in localStorage | Implemented (`multiagent_api_key`) |
-| SSO / production auth | Planned |
+| Sign-in (`/login`, httpOnly session cookie) | Implemented |
+| Admin user management (`/admin/users`) | Implemented |
+| SSO (Microsoft Entra ID) | Planned |
 
 ## Project structure
 
@@ -60,10 +61,12 @@ src/
 |------|------|
 | `/chat` | New chat |
 | `/chat/:sessionId` | Existing session |
+| `/login` | Sign in |
 | `/settings` | Settings |
 | `/admin` | Dashboard |
 | `/admin/knowledge` | Knowledge management |
 | `/admin/feedback` | Feedback review |
+| `/admin/users` | User management (admin only) |
 | `/admin/audit` | Audit logs |
 | `/admin/models` | Model & agent catalog |
 | `/admin/logs` | System logs |
@@ -79,7 +82,7 @@ src/
 
 No `.env` required for local dev — Vite proxies `/api` to port `8000`.
 
-Optional: set API key in Settings UI (stored as `multiagent_api_key`).
+Every API call needs a signed-in session: open `/login` and sign in with a local account. The session is an `HttpOnly` cookie set by the backend, so the browser keeps no API key or token in `localStorage`. Create the first admin with `python scripts/create_admin.py` (see [../docs/12-LOCAL-SETUP.md](../docs/12-LOCAL-SETUP.md)).
 
 ## Related docs
 

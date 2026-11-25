@@ -63,7 +63,7 @@ Design implication: **One chat UI** handles all agents. Show which agent(s) work
 | **Platform Admin** | IT / ops | Dashboard, audit, feedback export, models view |
 | **Super Admin** | Future | SSO, API keys, tenant settings |
 
-**Auth today:** Optional `X-API-Key` header. **Auth planned:** Microsoft Entra ID SSO — reserve **Login** page slot.
+**Auth today:** local email + password sign-in on `/login`; the backend sets an `HttpOnly` session cookie (the browser stores no API key or token). `X-API-Key` remains for scripts/CI only, not for the UI. **Auth planned:** Microsoft Entra ID SSO — the **Login** page is the slot for it.
 
 ---
 
@@ -289,7 +289,7 @@ ADMIN CONSOLE
 |---------|----------|
 | Appearance | Theme: Light / Dark / System |
 | Language | UI language: Vietnamese / English |
-| API key (dev only) | Text input + **Save** — for local `X-API-Key` |
+| Password | Current / new / confirm password, **Change password** (12–128 characters) |
 | About | Version from `GET /health` |
 
 **Buttons:** **Save changes** · **Cancel**
@@ -607,7 +607,7 @@ Citations appear for **research** and **legal** answers — not every message.
 |-------|---------|
 | Loading | Skeleton / spinner |
 | Empty | Illustration + primary CTA |
-| Error 401 | "Authentication required" + login/key prompt |
+| Error 401 | "Authentication required" + redirect to `/login` |
 | Error 500 | Toast + retry + trace_id |
 | Success | Toast notification (3s auto-dismiss) |
 | Offline | Banner "No connection" |

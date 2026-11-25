@@ -4,6 +4,7 @@ import { MaterialIcon } from '../ui/MaterialIcon'
 const mainNav = [
   { to: '/admin', label: 'Dashboard', icon: 'dashboard', end: true },
   { to: '/admin/knowledge', label: 'Knowledge', icon: 'database' },
+  { to: '/admin/users', label: 'Users', icon: 'group' },
   { to: '/admin/feedback', label: 'Feedback', icon: 'chat_bubble' },
   { to: '/admin/audit', label: 'Audit', icon: 'security' },
   { to: '/admin/models', label: 'Models', icon: 'model_training' },

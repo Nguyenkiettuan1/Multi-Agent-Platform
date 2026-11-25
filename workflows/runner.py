@@ -8,7 +8,8 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-from core.intelligence.feedback_store import load_session_history, save_chat_trace
+from core.chat.store import append_message, load_recent_messages
+from core.intelligence.feedback_store import save_chat_trace
 from core.llm.context import get_usage_tracker, reset_usage_tracker
 from core.observability.audit import write_audit
 from core.observability.logging import set_trace_id
@@ -20,6 +21,12 @@ from workflows.state import GraphState, PipelineStep
 logger = logging.getLogger(__name__)
 
 _default_graph = None
+
+# Sent to the client in place of the raw exception text (which can carry SQL, paths or secrets);
+# the real exception goes to the server log and the audit trail.
+GENERIC_ERROR_MESSAGE = "The request failed. Please try again."
+CONTEXT_TURNS = 20
+_ERROR_AUDIT_MAX = 200
 
 
 def get_graph():
@@ -34,6 +41,68 @@ def get_graph():
 def set_graph(graph) -> None:
     global _default_graph
     _default_graph = graph
+
+
+def _load_context(session_id: str | None, trace_id: str) -> list[dict]:
+    """LLM context from chat_messages; a detached run (no session) has none."""
+    if session_id is None:
+        return []
+    try:
+        return load_recent_messages(session_id, limit_turns=CONTEXT_TURNS)
+    except Exception:
+        logger.warning(
+            "chat context load failed session=%s trace=%s", session_id, trace_id, exc_info=True
+        )
+        return []
+
+
+def _audit_error_text(exc: BaseException) -> str:
+    """Exception type plus a short message for the audit trail (admin-only, but SQL errors carry
+    statements and bound values, so the text is capped)."""
+    return f"{type(exc).__name__}: {str(exc)[:_ERROR_AUDIT_MAX]}"
+
+
+async def _steps_already_in_thread(compiled, config: dict) -> int:
+    """How many pipeline steps the thread's checkpoint holds before this turn runs.
+
+    GraphState.pipeline_steps uses operator.add, so every turn of a thread appends to the previous
+    turns' steps. The response must show only this turn: callers slice from this offset.
+    """
+    try:
+        snapshot = await compiled.aget_state(config)
+    except Exception:
+        logger.warning("pipeline offset lookup failed thread=%s", config["configurable"]["thread_id"], exc_info=True)
+        return 0
+    values = getattr(snapshot, "values", None) or {}
+    return len(values.get("pipeline_steps") or [])
+
+
+def _record_message(
+    session_id: str | None,
+    trace_id: str,
+    role: str,
+    content: str,
+    *,
+    status: str = "completed",
+    error: str | None = None,
+) -> None:
+    """Persist one chat message; storage trouble must never break the answer the user waits for."""
+    if session_id is None:
+        return
+    try:
+        append_message(
+            session_id=session_id,
+            role=role,
+            content=content,
+            status=status,
+            trace_id=trace_id,
+            error=error,
+        )
+    except Exception:
+        logger.warning(
+            "chat message persist failed session=%s trace=%s role=%s",
+            session_id, trace_id, role, exc_info=True,
+        )
 
 
 def _build_initial_state(
@@ -85,7 +154,9 @@ def _pipeline_payload(steps: list) -> list[dict]:
     return out
 
 
-def _result_to_response(result: dict[str, Any], *, trace_id: str, session_id: str) -> dict[str, Any]:
+def _result_to_response(
+    result: dict[str, Any], *, trace_id: str, session_id: str, steps_before: int = 0
+) -> dict[str, Any]:
     triage = result.get("triage")
     eval_result = result.get("eval_result")
     return {
@@ -100,7 +171,7 @@ def _result_to_response(result: dict[str, Any], *, trace_id: str, session_id: st
         "response": result.get("final_response", ""),
         "redacted_types": result.get("redacted_types", []),
         "citations": result.get("citations", []),
-        "pipeline": _pipeline_payload(result.get("pipeline_steps", [])),
+        "pipeline": _pipeline_payload(result.get("pipeline_steps", [])[steps_before:]),
         "model_usage": get_usage_tracker().to_list(),
     }
 
@@ -115,10 +186,15 @@ async def run_agent_workflow(
 ) -> dict[str, Any]:
     reset_usage_tracker()
     trace_id = uuid.uuid4().hex
+    # session_id=None is a detached run (eval, scripts): graph thread only, nothing is persisted.
+    # A given session_id must already exist and be owned by user_id (the gateway checks that).
+    persist_to = session_id
     session_id = session_id or uuid.uuid4().hex
     set_trace_id(trace_id)
 
-    chat_history = load_session_history(session_id, limit=20) if session_id else []
+    chat_history = _load_context(persist_to, trace_id)
+    # Before the graph runs: if the process dies mid-run the question still shows as 'incomplete'.
+    _record_message(persist_to, trace_id, "user", user_message)
     initial = _build_initial_state(
         user_message=user_message,
         session_id=session_id,
@@ -130,6 +206,7 @@ async def run_agent_workflow(
 
     compiled = graph or get_graph()
     config = {"configurable": {"thread_id": session_id}}
+    steps_before = await _steps_already_in_thread(compiled, config)
 
     logger.info("workflow start session=%s user=%s", session_id, user_id)
     write_audit(
@@ -149,7 +226,10 @@ async def run_agent_workflow(
             session_id=session_id,
             user_id=user_id,
             action="chat_error",
-            payload={"error": str(exc)},
+            payload={"error": _audit_error_text(exc)},
+        )
+        _record_message(
+            persist_to, trace_id, "assistant", "", status="failed", error=type(exc).__name__
         )
         raise
 
@@ -170,6 +250,7 @@ async def run_agent_workflow(
 
     final_response = result.get("final_response", "")
     eval_score = eval_result.score if eval_result else None
+    _record_message(persist_to, trace_id, "assistant", final_response)
     save_chat_trace(
         trace_id=trace_id,
         session_id=session_id,
@@ -178,7 +259,7 @@ async def run_agent_workflow(
         eval_score=eval_score,
     )
 
-    return _result_to_response(result, trace_id=trace_id, session_id=session_id)
+    return _result_to_response(result, trace_id=trace_id, session_id=session_id, steps_before=steps_before)
 
 
 def _sse(event: str, data: dict) -> str:
@@ -196,10 +277,12 @@ async def stream_agent_workflow(
     """SSE stream — step events live, complete event with full ChatResponse."""
     reset_usage_tracker()
     trace_id = uuid.uuid4().hex
+    persist_to = session_id
     session_id = session_id or uuid.uuid4().hex
     set_trace_id(trace_id)
 
-    chat_history = load_session_history(session_id, limit=20) if session_id else []
+    chat_history = _load_context(persist_to, trace_id)
+    _record_message(persist_to, trace_id, "user", user_message)
     initial = _build_initial_state(
         user_message=user_message,
         session_id=session_id,
@@ -211,6 +294,7 @@ async def stream_agent_workflow(
 
     compiled = graph or get_graph()
     config = {"configurable": {"thread_id": session_id}}
+    steps_before = await _steps_already_in_thread(compiled, config)
     accumulated: dict[str, Any] = dict(initial)
 
     write_audit(
@@ -254,9 +338,17 @@ async def stream_agent_workflow(
             session_id=session_id,
             user_id=user_id,
             action="chat_error",
-            payload={"error": str(exc)},
+            payload={"error": _audit_error_text(exc)},
         )
-        yield _sse("error", {"message": str(exc)})
+        logger.exception("chat stream failed session=%s trace=%s", session_id, trace_id)
+        _record_message(
+            persist_to, trace_id, "assistant", "", status="failed", error=type(exc).__name__
+        )
+        error_event: dict[str, Any] = {"message": GENERIC_ERROR_MESSAGE}
+        if persist_to is not None:
+            # Lets the client move to a session the server just created instead of orphaning it.
+            error_event["session_id"] = persist_to
+        yield _sse("error", error_event)
         return
 
     triage = accumulated.get("triage")
@@ -274,6 +366,7 @@ async def stream_agent_workflow(
         },
     )
 
+    _record_message(persist_to, trace_id, "assistant", accumulated.get("final_response", ""))
     save_chat_trace(
         trace_id=trace_id,
         session_id=session_id,
@@ -282,4 +375,7 @@ async def stream_agent_workflow(
         eval_score=eval_result.score if eval_result else None,
     )
 
-    yield _sse("complete", _result_to_response(accumulated, trace_id=trace_id, session_id=session_id))
+    yield _sse(
+        "complete",
+        _result_to_response(accumulated, trace_id=trace_id, session_id=session_id, steps_before=steps_before),
+    )

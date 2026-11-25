@@ -22,6 +22,6 @@ CREATE TABLE IF NOT EXISTS contracts (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_contracts_status ON contracts(status);
-CREATE INDEX idx_contracts_client ON contracts(client_id);
-CREATE INDEX idx_clients_name ON clients(name);
+CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status);
+CREATE INDEX IF NOT EXISTS idx_contracts_client ON contracts(client_id);
+CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name);

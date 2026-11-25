@@ -19,6 +19,41 @@ export type ChatSessionSummary = {
 export type ChatSessionsResponse = {
   items: ChatSessionSummary[]
   count: number
+  has_more: boolean
+  next_before: string | null
+}
+
+export type UserRole = 'user' | 'admin'
+
+export type User = {
+  id: string
+  email: string
+  display_name: string
+  role: UserRole
+  must_change_password: boolean
+}
+
+export type AuthMe = {
+  user: User
+  via: 'session' | 'api_key'
+}
+
+export type AdminUser = User & {
+  is_active: boolean
+  created_at: string
+  last_login_at: string | null
+}
+
+export type AdminUsersResponse = {
+  items: AdminUser[]
+  total: number
+}
+
+export type CreateUserRequest = {
+  email: string
+  display_name: string
+  role: UserRole
+  password: string
 }
 
 export type ChatHistoryResponse = {
@@ -38,7 +73,6 @@ export type ChatAttachment = {
 export type ChatRequest = {
   message: string
   session_id?: string | null
-  user_id?: string
   attachments?: ChatAttachment[]
 }
 

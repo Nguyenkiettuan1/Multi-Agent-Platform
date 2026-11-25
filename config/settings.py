@@ -57,8 +57,16 @@ class Settings(BaseSettings):
     azure_openai_endpoint: str = ""
     azure_openai_api_key: str = ""
 
-    # API security — empty = auth disabled (local dev)
+    # API security. api_key = optional X-API-Key for scripts/CI (empty = that path is
+    # off, NOT "auth disabled": every API route needs a login or a valid key).
     api_key: str = ""
+    # Signs the ma_session cookie (HMAC). Empty = login/session calls fail fast;
+    # changing it logs everyone out at once.
+    auth_secret_key: str = ""
+    auth_session_ttl_hours: int = Field(default=12, ge=1, le=168)  # 1h..7 days
+    # Keep True outside plain-http local dev; browsers drop Secure cookies on http
+    # (except localhost).
+    auth_cookie_secure: bool = True
 
     # Embeddings — choose provider + model explicitly (see .env.example)
     # openai | openrouter | azure | auto (infer from key + model name)

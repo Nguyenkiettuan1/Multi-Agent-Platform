@@ -1,13 +1,18 @@
-import { useEffect, useId, useState } from 'react'
-import { api } from '../../api/client'
+import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ApiError, api } from '../../api/client'
 import type { HealthResponse } from '../../api/types'
-import { getApiKey, setApiKey } from '../../lib/storage'
+import { useAuth } from '../../auth/AuthContext'
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, changePasswordErrorMessage, passwordProblem } from '../../lib/auth'
 
 // Both selects stay visible but inert until theming / i18n exist; disabled text is on-surface-variant,
 // slightly lighter than normal to signal inactive while staying readable (8.52:1).
 // 16px (text-body-lg) on form fields: iOS Safari zooms the page on focus below that.
 const selectClass =
   'w-full rounded-lg border border-border-subtle bg-surface px-3 py-2 text-body-lg focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none disabled:cursor-not-allowed disabled:bg-surface-container-low disabled:text-on-surface-variant'
+
+const inputClass =
+  'w-full rounded-lg border border-border-subtle bg-surface px-3 py-2 text-body-lg focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none'
 
 // Status text uses primary (black) because the status-success/warning tokens fail 4.5:1 as text;
 // the colored dot is decorative and the word carries the meaning.
@@ -26,9 +31,20 @@ function StatusValue({ tone, children }: { tone: 'success' | 'warning'; children
 export function SettingsPage() {
   const themeId = useId()
   const languageId = useId()
-  const apiKeyId = useId()
-  const [apiKey, setApiKeyInput] = useState(getApiKey())
-  const [saved, setSaved] = useState(false)
+  const currentId = useId()
+  const newId = useId()
+  const confirmId = useId()
+  const hintId = useId()
+  const errorId = useId()
+  const navigate = useNavigate()
+  const { state, refresh } = useAuth()
+  const mustChange = state.status === 'authenticated' && state.user.must_change_password
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordBusy, setPasswordBusy] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordChanged, setPasswordChanged] = useState(false)
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [healthError, setHealthError] = useState<string | null>(null)
 
@@ -37,12 +53,44 @@ export function SettingsPage() {
       .health()
       .then(setHealth)
       .catch((err: unknown) => setHealthError(err instanceof Error ? err.message : 'Unable to connect to API'))
-  }, [saved])
+  }, [])
 
-  const handleSave = () => {
-    setApiKey(apiKey)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleChangePassword = async (e: FormEvent) => {
+    e.preventDefault()
+    if (passwordBusy) return
+    setPasswordChanged(false)
+    const problem = passwordProblem(currentPassword, newPassword, confirmPassword)
+    if (problem) {
+      setPasswordError(problem)
+      return
+    }
+    setPasswordBusy(true)
+    setPasswordError(null)
+    try {
+      await api.changePassword(currentPassword, newPassword)
+    } catch (err) {
+      setPasswordError(
+        err instanceof ApiError
+          ? changePasswordErrorMessage(err.status, err.message, err.retryAfter)
+          : changePasswordErrorMessage(undefined, ''),
+      )
+      setPasswordBusy(false)
+      return
+    }
+
+    // The password is changed from here on, whatever happens to the follow-up refresh.
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setPasswordChanged(true)
+    setPasswordBusy(false)
+    try {
+      // Clears must_change_password in the guard's view; a blocked user is then sent on to chat.
+      await refresh()
+      if (mustChange) navigate('/chat', { replace: true })
+    } catch {
+      setPasswordError('Password changed, but your account could not be reloaded. Reload the page to continue.')
+    }
   }
 
   return (
@@ -75,29 +123,72 @@ export function SettingsPage() {
         </section>
 
         <section className="rounded-xl border border-border-subtle bg-surface p-6">
-          <h2 className="mb-4 text-headline-sm text-primary">API Key (dev)</h2>
-          <label htmlFor={apiKeyId} className="mb-2 block text-label-sm text-on-surface-variant">API key</label>
-          <input
-            id={apiKeyId}
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKeyInput(e.target.value)}
-            placeholder="X-API-Key"
-            className="mb-4 w-full rounded-lg border border-border-subtle bg-surface px-3 py-2 text-body-lg focus:border-secondary focus:ring-1 focus:ring-secondary focus:outline-none"
-          />
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleSave}
-              className="rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary hover:bg-inverse-surface"
-            >
-              Save
-            </button>
-            {/* Region stays mounted so the text change is announced; a region inserted with its content is often missed. */}
-            <span role="status" className="text-label-md text-primary">
-              {saved ? 'Saved' : ''}
-            </span>
-          </div>
+          <h2 className="mb-4 text-headline-sm text-primary">Password</h2>
+          {mustChange && (
+            <p className="mb-4 rounded-lg bg-surface-container-low px-3 py-2 text-body-md text-primary">
+              Your password was set by an administrator. Choose a new one to start using the workspace.
+            </p>
+          )}
+          <form onSubmit={handleChangePassword}>
+            <div className="mb-4">
+              <label htmlFor={currentId} className="mb-2 block text-label-sm text-on-surface-variant">Current password</label>
+              <input
+                id={currentId}
+                type="password"
+                autoComplete="current-password"
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                aria-describedby={passwordError ? errorId : undefined}
+                className={inputClass}
+              />
+            </div>
+            <div className="mb-4">
+              <label htmlFor={newId} className="mb-2 block text-label-sm text-on-surface-variant">New password</label>
+              <input
+                id={newId}
+                type="password"
+                autoComplete="new-password"
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                aria-describedby={passwordError ? `${hintId} ${errorId}` : hintId}
+                className={inputClass}
+              />
+              <p id={hintId} className="mt-1 text-label-sm text-on-surface-variant">
+                {PASSWORD_MIN_LENGTH} to {PASSWORD_MAX_LENGTH} characters.
+              </p>
+            </div>
+            <div className="mb-4">
+              <label htmlFor={confirmId} className="mb-2 block text-label-sm text-on-surface-variant">Confirm new password</label>
+              <input
+                id={confirmId}
+                type="password"
+                autoComplete="new-password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                aria-describedby={passwordError ? errorId : undefined}
+                className={inputClass}
+              />
+            </div>
+            {/* Regions stay mounted so text appearing inside them is announced. */}
+            <div id={errorId} role="alert" className="mb-4 text-body-md text-error empty:hidden">
+              {passwordError}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="submit"
+                aria-disabled={passwordBusy}
+                className="rounded-lg bg-primary px-4 py-2 text-label-md text-on-primary hover:bg-inverse-surface aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+              >
+                {passwordBusy ? 'Changing…' : 'Change password'}
+              </button>
+              <span role="status" className="text-label-md text-primary">
+                {passwordChanged ? 'Password changed' : ''}
+              </span>
+            </div>
+          </form>
         </section>
 
         <section className="rounded-xl border border-border-subtle bg-surface p-6">

@@ -12,6 +12,9 @@ from workflows.state import AgentId, SubTask, WorkerResult
 
 logger = logging.getLogger(__name__)
 
+# What the user sees when the step breaks; the exception itself (SQL, schema names, paths) only goes to the log.
+GENERIC_WORKER_ERROR = "The database lookup failed. Please try again."
+
 
 async def run_db_worker(task: SubTask, *, chat_history: list[dict] | None = None) -> WorkerResult:
     skill = load_skill_instructions("database-query")
@@ -47,12 +50,12 @@ async def run_db_worker(task: SubTask, *, chat_history: list[dict] | None = None
             success=False,
             tools_called=tools_called,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("db-worker failed")
         return WorkerResult(
             task_id=task.id,
             agent=AgentId.DB_WORKER,
-            summary=f"DB error: {exc}",
+            summary=GENERIC_WORKER_ERROR,
             success=False,
             tools_called=tools_called,
         )

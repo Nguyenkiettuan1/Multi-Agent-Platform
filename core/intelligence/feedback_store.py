@@ -37,8 +37,14 @@ def save_chat_trace(
     _persist_upsert(record)
 
 
-def apply_user_rating(*, trace_id: str, rating: int, comment: str = "") -> bool:
-    """User rates a previous chat — updates existing trace row."""
+def apply_user_rating(
+    *, trace_id: str, rating: int, comment: str = "", auto_promote: bool = False
+) -> bool:
+    """User rates a previous chat — updates existing trace row.
+
+    auto_promote is opt-in: promotion copies the Q&A into the RAG store shared by every user, so
+    only a caller who trusts the rater (admin / service key) may turn it on.
+    """
     existing = get_by_trace_id(trace_id)
     if existing:
         existing.rating = rating
@@ -49,7 +55,8 @@ def apply_user_rating(*, trace_id: str, rating: int, comment: str = "") -> bool:
         if not settings.platform_database_url or not _persist_rating(trace_id, rating, comment):
             return False
 
-    _try_auto_promote(trace_id, rating)
+    if auto_promote:
+        _try_auto_promote(trace_id, rating)
     return True
 
 
@@ -248,133 +255,3 @@ def _list_from_db(
         if r.get("created_at"):
             r["created_at"] = r["created_at"].isoformat()
     return items
-
-
-def load_session_history(session_id: str, *, limit: int = 30) -> list[dict[str, Any]]:
-    """Load prior Q&A turns for a session — oldest first for LLM context."""
-    if platform_db_configured():
-        try:
-            engine = get_platform_engine()
-            sql = """
-                SELECT user_message, response, created_at
-                FROM platform.feedback
-                WHERE session_id = :session_id
-                ORDER BY id DESC
-                LIMIT :limit
-            """
-            with engine.connect() as conn:
-                rows = conn.execute(
-                    text(sql),
-                    {"session_id": session_id, "limit": min(limit, 50)},
-                ).mappings().all()
-
-            # Newest N turns, flipped back to oldest-first so the LLM reads them in time order.
-            messages: list[dict[str, Any]] = []
-            for row in reversed(rows):
-                if row["user_message"]:
-                    messages.append({"role": "user", "content": row["user_message"]})
-                if row["response"]:
-                    messages.append({"role": "assistant", "content": row["response"]})
-            return messages
-        except Exception as exc:
-            logger.warning("load_session_history DB failed: %s", exc)
-
-    items = [r for r in list_feedback(limit=limit * 2) if r.session_id == session_id]
-    items.sort(key=lambda r: r.created_at or "")
-    messages = []
-    for record in items[-limit:]:
-        if record.user_message:
-            messages.append({"role": "user", "content": record.user_message})
-        if record.response:
-            messages.append({"role": "assistant", "content": record.response})
-    return messages
-
-
-def list_session_traces(
-    session_id: str, *, limit: int = 50, before_id: int | None = None
-) -> dict[str, Any]:
-    """One page of Q&A traces for chat UI restore: the newest `limit` turns before `before_id`.
-
-    Keyset pagination on id (stable when new turns land mid-scroll, unlike OFFSET). The sort key
-    must be the cursor key: created_at is nullable and is the transaction start time, so it can
-    disagree with insert order and a created_at sort would skip rows. Turns are returned oldest-first; `next_before` is the cursor for the next (older) page.
-    """
-    if platform_db_configured():
-        try:
-            engine = get_platform_engine()
-            sql = """
-                SELECT id, trace_id, session_id, user_message, response, rating, comment, eval_score, created_at
-                FROM platform.feedback
-                WHERE session_id = :session_id
-                  AND (CAST(:before AS bigint) IS NULL OR id < CAST(:before AS bigint))
-                ORDER BY id DESC
-                LIMIT :fetch
-            """
-            page_size = min(limit, 100)
-            with engine.connect() as conn:
-                rows = conn.execute(
-                    text(sql),
-                    # One extra row only tells us whether an older page exists.
-                    {"session_id": session_id, "before": before_id, "fetch": page_size + 1},
-                ).mappings().all()
-            has_more = len(rows) > page_size
-            items = [dict(r) for r in reversed(rows[:page_size])]
-            next_before = str(items[0]["id"]) if has_more else None
-            for r in items:
-                r.pop("id")
-                if r.get("created_at"):
-                    r["created_at"] = r["created_at"].isoformat()
-            return {"turns": items, "has_more": has_more, "next_before": next_before}
-        except Exception as exc:
-            logger.warning("list_session_traces DB failed: %s", exc)
-
-    items = [r for r in list_feedback(limit=limit * 2) if r.session_id == session_id]
-    items.sort(key=lambda r: r.created_at or "")
-    return {"turns": [_record_to_dict(r) for r in items[-limit:]], "has_more": False, "next_before": None}
-
-
-def list_recent_sessions(*, limit: int = 30) -> list[dict[str, Any]]:
-    """Recent chat sessions for sidebar — one row per session_id."""
-    if platform_db_configured():
-        try:
-            engine = get_platform_engine()
-            sql = """
-                SELECT session_id,
-                       (array_agg(user_message ORDER BY created_at ASC))[1] AS title,
-                       max(created_at) AS updated_at
-                FROM platform.feedback
-                WHERE session_id IS NOT NULL AND session_id <> ''
-                GROUP BY session_id
-                ORDER BY max(created_at) DESC
-                LIMIT :limit
-            """
-            with engine.connect() as conn:
-                rows = conn.execute(
-                    text(sql),
-                    {"limit": min(limit, 100)},
-                ).mappings().all()
-            items = [dict(r) for r in rows]
-            for r in items:
-                if r.get("updated_at"):
-                    r["updated_at"] = r["updated_at"].isoformat()
-            return items
-        except Exception as exc:
-            logger.warning("list_recent_sessions DB failed: %s", exc)
-
-    by_session: dict[str, FeedbackRecord] = {}
-    for record in list_feedback(limit=limit * 10):
-        if not record.session_id:
-            continue
-        existing = by_session.get(record.session_id)
-        if existing is None or (record.created_at or "") > (existing.created_at or ""):
-            by_session[record.session_id] = record
-
-    sessions = sorted(by_session.values(), key=lambda r: r.created_at or "", reverse=True)
-    return [
-        {
-            "session_id": r.session_id,
-            "title": r.user_message,
-            "updated_at": r.created_at,
-        }
-        for r in sessions[:limit]
-    ]
